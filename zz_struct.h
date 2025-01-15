@@ -34,9 +34,9 @@ typedef struct CpuUsage { // %
 
 typedef struct MemUsage { // Capacity
     size_t memTotal; 
-    size_t memFree;
+    size_t memUse;
     size_t swapTotal;
-    size_t swapFree;
+    size_t swapUse;
 } MemUsage;
 
 /* log content */

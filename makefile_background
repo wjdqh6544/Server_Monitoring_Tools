@@ -2,8 +2,8 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Werror
 LINK = -lpthread
 
-TARGET = 00_Resources_Collector
-SRCS = 00_Resources_Collector.c common.c info_to_log.c
+TARGET = resources_collector
+SRCS = resources_collector.c common.c info_to_log.c
 OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)

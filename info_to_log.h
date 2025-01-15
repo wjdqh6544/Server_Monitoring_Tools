@@ -1,9 +1,12 @@
-#ifndef TEMPTOLOG
+#ifndef INFOTOLOG
 
-#define TEMPTOLOG
+#define INFOTOLOG
 #include "zz_struct.h"
 
-void get_Temperature_Omreport(TempInfo* tempBuf);
 void* write_Temperature_to_Log();
+void* write_Usage_to_Log();
+void get_Temperature_Omreport(TempInfo* tempBuf);
+void get_CPU_Usage(CpuUsage* cpuUsageBuf);
+void get_Memory_Usage(MemUsage* memUsageBuf);
 
 #endif

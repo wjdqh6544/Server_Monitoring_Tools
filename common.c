@@ -1,4 +1,5 @@
 #include "0_usrDefine.h"
+#include "common.h"
 #include "zz_struct.h"
 #include <time.h>
 #include <stdio.h>
@@ -51,11 +52,11 @@ double convert_Size_Unit(size_t size, UNIT unit){ // Convert to the largest capa
     return res;
 }
 
-void get_Filename(char* path, char* filename, char* type, DateInfo* targetDate){ // Create a full path of Log file.
+void get_Filename(char* fullpathBuf, char* path, char* filename, DateInfo* targetDate){ // Create a full path of Log file.
     if (path[strlen(path) - 1] == '/'){ // filename form: <type>-YYYYMMDD
-        sprintf(filename, "%s%s-%04d%02d%02d", path, type, targetDate->year, targetDate->month, targetDate->day); // <path(Directory)>/<type>-YYYYMMDD
+        sprintf(fullpathBuf, "%s%s-%04d%02d%02d", path, filename, targetDate->year, targetDate->month, targetDate->day); // <path(Directory)>/<type>-YYYYMMDD
     } else {
-        sprintf(filename, "%s/%s-%04d%02d%02d", path, type, targetDate->year, targetDate->month, targetDate->day);
+        sprintf(fullpathBuf, "%s/%s-%04d%02d%02d", path, filename, targetDate->year, targetDate->month, targetDate->day);
     }
     
 }
