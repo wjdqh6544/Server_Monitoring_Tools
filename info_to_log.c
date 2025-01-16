@@ -2,9 +2,9 @@
 #include "common.h"
 #include "info_to_log.h"
 #include "zz_struct.h"
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -12,46 +12,80 @@
 extern DateInfo dateBuf;
 
 void* write_Temperature_to_Log(){ // Write temperature information to Log file.
-    int fd = -1;
-    TempLog tempBuf;
+    int fd = -1, bytes = 0;
+    TempLog tempBuf, privBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
 
-    get_Filename(fullpath, HISTORY_PATH, TEMP_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/Temperature_history-YYYYMMDD
-    if ((fd = open(fullpath, O_WRONLY | O_CREAT | O_APPEND, 0640)) == -1){
-        exception(-1, "write_Temperature_to_Log", fullpath);
-        return NULL;
-    }
+    while(1){
+        get_Filename(fullpath, HISTORY_PATH, TEMP_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/Temperature_history-YYYYMMDD
+        if ((fd = open(fullpath, O_RDWR | O_CREAT | O_APPEND, 0640)) == -1){
+            exception(-1, "write_Temperature_to_Log", fullpath);
+            return NULL;
+        }
 
-    tempBuf.date = dateBuf;
-    get_Temperature_Omreport(&(tempBuf.temp));
+        lseek(fd, -sizeof(TempLog), SEEK_END); // Read last recorded date (for writing the data with 1sec interval)
+        bytes = read(fd, &privBuf, sizeof(TempLog));
 
-    if (write(fd, &tempBuf, sizeof(TempLog)) != sizeof(TempLog)) {
-        exception(-3, "write_Temperature_to_Log", "<Writed data size> != sizeof(TempLog)");
+        if ((bytes != sizeof(TempLog)) && (bytes > 0)){ 
+            exception(-2, "write_Temperature_to_Log", "<Read data size> != sizeof(TempLog) - for checking date");
+            return NULL;
+        }
+
+        if ((bytes != 0) && ((privBuf.date.year == dateBuf.year) && (privBuf.date.month == dateBuf.month) && (privBuf.date.day == dateBuf.day) 
+        && (privBuf.date.hrs == dateBuf.hrs) && (privBuf.date.min == dateBuf.min) && (privBuf.date.sec == dateBuf.sec))) { // Data not save If the time is same (Last Log time = now time)
+            close(fd);
+            continue;
+        } else {
+            tempBuf.date = dateBuf;
+            get_Temperature_Omreport(&(tempBuf.temp));
+
+            if (write(fd, &tempBuf, sizeof(TempLog)) != sizeof(TempLog)) {
+                exception(-3, "write_Temperature_to_Log", "<Writed data size> != sizeof(TempLog)");
+            }
+
+            close(fd);
+        }       
     }
-    close(fd);
 
     return NULL;
 }
 
 void* write_Usage_to_Log(){ // Write usage information to Log file.
-    int fd = -1;
-    UsageLog usageBuf;
+    int fd = -1, bytes = 0;
+    UsageLog usageBuf, privBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
 
-    get_Filename(fullpath, HISTORY_PATH, USAGE_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/Usage_history-YYYYMMDD
-    if ((fd = open(fullpath, O_WRONLY | O_CREAT | O_APPEND, 0640)) == -1){
-        exception(-1, "write_Usage_to_Log", fullpath);
-        return NULL;
-    }
+    while(1){
+        get_Filename(fullpath, HISTORY_PATH, USAGE_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/Usage_history-YYYYMMDD
+        if ((fd = open(fullpath, O_RDWR | O_CREAT | O_APPEND, 0640)) == -1){
+            exception(-1, "write_Usage_to_Log", fullpath);
+            return NULL;
+        }
 
-    usageBuf.date = dateBuf;
-    get_CPU_Usage(&(usageBuf.cpu));
-    get_Memory_Usage(&(usageBuf.mem));
+        lseek(fd, -sizeof(UsageLog), SEEK_END); // Read last recorded date (for writing the data with 1sec interval)
+        bytes = read(fd, &privBuf, sizeof(UsageLog));
 
-    if (write(fd, &usageBuf, sizeof(UsageLog)) != sizeof(UsageLog)) {
-        exception(-3, "write_Usage_to_Log", "<Writed data size> != sizeof(UsageLog)");
+        if ((bytes != sizeof(UsageLog)) && (bytes > 0)) {
+            exception(-2, "write_Usage_to_Log", "<Read data size> != sizeof(UsageLog) - for checking date");
+            return NULL;
+        }
+
+        if ((bytes != 0) && ((privBuf.date.year == dateBuf.year) && (privBuf.date.month == dateBuf.month) && (privBuf.date.day == dateBuf.day) 
+        && (privBuf.date.hrs == dateBuf.hrs) && (privBuf.date.min == dateBuf.min) && (privBuf.date.sec == dateBuf.sec))) { // Data not save If the time is same (Last Log time = now time)
+            close(fd);
+            continue;
+        } else {
+            usageBuf.date = dateBuf;
+            get_CPU_Usage(&(usageBuf.cpu));
+            get_Memory_Usage(&(usageBuf.mem));
+
+            if (write(fd, &usageBuf, sizeof(UsageLog)) != sizeof(UsageLog)) {
+                exception(-3, "write_Usage_to_Log", "<Writed data size> != sizeof(UsageLog)");
+            }
+
+            close(fd);
+        }
     }
-    close(fd);
 
     return NULL;
 }
