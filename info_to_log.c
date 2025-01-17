@@ -31,20 +31,16 @@ void* write_Temperature_to_Log(){ // Write temperature information to Log file.
             return NULL;
         }
 
-        if ((bytes != 0) && ((privBuf.date.year == dateBuf.year) && (privBuf.date.month == dateBuf.month) && (privBuf.date.day == dateBuf.day) 
-        && (privBuf.date.hrs == dateBuf.hrs) && (privBuf.date.min == dateBuf.min) && (privBuf.date.sec == dateBuf.sec))) { // Data not save If the time is same (Last Log time = now time)
-            close(fd);
-            continue;
-        } else {
-            tempBuf.date = dateBuf;
-            get_Temperature_Omreport(&(tempBuf.temp));
+        tempBuf.date = dateBuf;
+        get_Temperature(&(tempBuf.temp));
 
-            if (write(fd, &tempBuf, sizeof(TempLog)) != sizeof(TempLog)) {
-                exception(-3, "write_Temperature_to_Log", "<Writed data size> != sizeof(TempLog)");
-            }
+        if (write(fd, &tempBuf, sizeof(TempLog)) != sizeof(TempLog)) {
+            exception(-3, "write_Temperature_to_Log", "<Writed data size> != sizeof(TempLog)");
+        }
 
-            close(fd);
-        }       
+        close(fd); 
+
+        sleep(1);   
     }
 
     return NULL;
@@ -70,62 +66,103 @@ void* write_Usage_to_Log(){ // Write usage information to Log file.
             return NULL;
         }
 
-        if ((bytes != 0) && ((privBuf.date.year == dateBuf.year) && (privBuf.date.month == dateBuf.month) && (privBuf.date.day == dateBuf.day) 
-        && (privBuf.date.hrs == dateBuf.hrs) && (privBuf.date.min == dateBuf.min) && (privBuf.date.sec == dateBuf.sec))) { // Data not save If the time is same (Last Log time = now time)
-            close(fd);
-            continue;
-        } else {
-            usageBuf.date = dateBuf;
-            get_CPU_Usage(&(usageBuf.cpu));
-            get_Memory_Usage(&(usageBuf.mem));
+        usageBuf.date = dateBuf;
+        get_CPU_Usage(&(usageBuf.cpu));
+        get_Memory_Usage(&(usageBuf.mem));
 
-            if (write(fd, &usageBuf, sizeof(UsageLog)) != sizeof(UsageLog)) {
-                exception(-3, "write_Usage_to_Log", "<Writed data size> != sizeof(UsageLog)");
-            }
-
-            close(fd);
+        if (write(fd, &usageBuf, sizeof(UsageLog)) != sizeof(UsageLog)) {
+            exception(-3, "write_Usage_to_Log", "<Writed data size> != sizeof(UsageLog)");
         }
+
+        close(fd);
+
+        sleep(1);
     }
 
     return NULL;
 }
 
-void get_Temperature_Omreport(TempInfo* tempBuf){ // Get Temperature Information from omreport
-    FILE* omreport_ptr = NULL;
-    char lineBuf[TEMP_MAX_LINE] = { 0 };
-    char* targetPos = NULL;
+// void* write_Warning_to_Log(){ // Write temperature and usage to Log If the value is more than or equal to the critical point.
+//     int fd = -1;
+// }
 
+void get_Temperature(TempInfo* tempBuf){ // For getting temperature, Initialize storage value.
     tempBuf->inlet = -100; // Initialization; -100 means "N/A"
     tempBuf->exhaust = -100;
-    tempBuf->cpu[0] = -100;
-    tempBuf->cpu[1] = -100;
+    for (int i = 0; i < MAX_CPU_COUNT; tempBuf->cpu[i++] = -100);
+    tempBuf->raidCore = -100;
+    tempBuf->raidController = -100;
+    tempBuf->storage_cnt = 0;
+    for (int i = 0; i < MAX_DISK_COUNT; tempBuf->storage[i++] = -100);
 
-    if ((omreport_ptr = popen(GET_TEMP_COMMAND, "r")) == NULL) { // Get raw data from omreport
-        exception(-2, "get_Temperature", "omreport");
+    get_Temperature_Omreport(tempBuf);
+    get_Temperature_Perccli(tempBuf);
+}
+
+void get_Temperature_Omreport(TempInfo* tempBuf){ // Get Temperature Information from omreport
+    FILE* omreport_ptr = NULL;
+    char lineBuf[TEMP_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+
+    if ((omreport_ptr = popen(GET_TEMP_OMREPORT_COMMAND, "r")) == NULL) { // Get raw data from omreport
+        exception(-2, "get_Temperature_Omreport", "omreport");
         return;
     }
     
     while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL){
-        if ((targetPos = strstr(lineBuf, "Inlet")) != NULL){ // Extract Inlet temperature
+        if ((targetPos = strstr(lineBuf, INLET_TEMP)) != NULL){ // Extract Inlet temperature
             fgets(lineBuf, sizeof(lineBuf), omreport_ptr);
             targetPos = strstr(lineBuf, ": ");
-            sscanf(targetPos, ": %f C", &(tempBuf->inlet));
-        } else if ((targetPos = strstr(lineBuf, "Exhaust")) != NULL){ // Extract Exhaust temperature
+            sscanf(targetPos, ": %hd.0 C", &(tempBuf->inlet));
+        } else if ((targetPos = strstr(lineBuf, EXHAUST_TEMP)) != NULL){ // Extract Exhaust temperature
             fgets(lineBuf, sizeof(lineBuf), omreport_ptr);
             targetPos = strstr(lineBuf, ": ");
-            sscanf(targetPos, ": %f C", &(tempBuf->exhaust));
-        } else if ((targetPos = strstr(lineBuf, "CPU1")) != NULL){ // Extract CPU1 Package temperature
+            sscanf(targetPos, ": %hd.0 C", &(tempBuf->exhaust));
+        } else if ((targetPos = strstr(lineBuf, CPU1_TEMP)) != NULL){ // Extract CPU1 Package temperature
             fgets(lineBuf, sizeof(lineBuf), omreport_ptr);
             targetPos = strstr(lineBuf, ": ");
-            sscanf(targetPos, ": %f C", &(tempBuf->cpu[0]));
-        } else if ((targetPos = strstr(lineBuf, "CPU2")) != NULL){ // Extract CPU2 Package temperature
+            sscanf(targetPos, ": %hd.0 C", &(tempBuf->cpu[0]));
+        } else if ((targetPos = strstr(lineBuf, CPU2_TEMP)) != NULL){ // Extract CPU2 Package temperature
             fgets(lineBuf, sizeof(lineBuf), omreport_ptr);
             targetPos = strstr(lineBuf, ": ");
-            sscanf(targetPos, ": %f C", &(tempBuf->cpu[1]));
+            sscanf(targetPos, ": %hd.0 C", &(tempBuf->cpu[1]));
         } 
     }
 
     pclose(omreport_ptr);
+}
+
+void get_Temperature_Perccli(TempInfo* tempBuf){
+    FILE* perccli_ptr = NULL;
+    char lineBuf[TEMP_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+
+    if ((perccli_ptr = popen(GET_RAID_TEMP_PERCCLI_COMMAND, "r")) == NULL){ // Get raw data of a RAID Card from perccli
+        exception(-2, "get_Temperature_Perccli", "Perccli");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        if ((targetPos = strstr(lineBuf, RAID_CORE_TEMP)) != NULL) { // Extract RAID core temperature
+            sscanf(targetPos + strlen(RAID_CORE_TEMP), "%hd", &(tempBuf->raidCore));
+        } else if ((targetPos = strstr(lineBuf, RAID_CTRL_TEMP))) { // Extract RAID controller temperature
+            sscanf(targetPos + strlen(RAID_CTRL_TEMP), "%hd", &(tempBuf->raidController));
+        }
+    }
+
+    pclose(perccli_ptr);
+
+    if ((perccli_ptr = popen(GET_STORAGE_TEMP_PERCCLI_COMMAND, "r")) == NULL){ // Get raw data of a RAID Card from perccli
+        exception(-2, "get_Temperature_Perccli", "Perccli");
+        return;
+    }
+
+    for (short i = 0; (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL); i++) {
+        sscanf(lineBuf, STORAGE_TEMP_FORM, &(tempBuf->storage[i])); // Extract RAID core temperature
+        tempBuf->storage_cnt = (short)(i + 1);
+    }
+
+    pclose(perccli_ptr);
 }
 
 void get_CPU_Usage(CpuUsage* cpuUsageBuf){ // Get CPU Usage(%) from Jiffies

@@ -23,16 +23,20 @@ typedef struct Unit_Mapping {
 
 /* Temp, Usage Information */
 typedef struct TempInfo { // Celcius
-    float inlet;
-    float exhaust;
-    float cpu[2];
+    short inlet;
+    short exhaust;
+    short cpu[MAX_CPU_COUNT];
+    short raidCore;
+    short raidController;
+    short storage_cnt;
+    short storage[MAX_DISK_COUNT];
 } TempInfo;
 
 typedef struct CpuUsage { // %
     float usage;    
 } CpuUsage;
 
-typedef struct MemUsage { // Capacity
+typedef struct MemUsage { // KB; Capacity
     size_t memTotal; 
     size_t memUse;
     size_t swapTotal;
@@ -54,7 +58,6 @@ typedef struct UsageLog {
 typedef struct WarningLog {
     DateInfo date;
     TempInfo temp;
-    short storage[DISK_COUNT];
     CpuUsage cpuUsage;
     MemUsage memUsage;
     short type;

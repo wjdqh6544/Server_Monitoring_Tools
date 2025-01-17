@@ -21,7 +21,7 @@ void IO_Redirection();
 void* refresh_now_Date();
 int main(void){
     struct sigaction sa;
-    pthread_t date, temp, usage;
+    pthread_t date, temp, usage;//, warning;
     char username[USERNAME_LEN] = { '\0' };
 
     sa.sa_handler = signal_handler;
@@ -41,10 +41,12 @@ int main(void){
     pthread_create(&date, NULL, refresh_now_Date, NULL);
     pthread_create(&temp, NULL, write_Temperature_to_Log, NULL);
     pthread_create(&usage, NULL, write_Usage_to_Log, NULL);
+    // pthread_create(&warning, NULL, write_Warning_to_Log, NULL);
 
     pthread_join(date, NULL);
     pthread_join(temp, NULL);
     pthread_join(usage, NULL);
+    // pthread_join(warning, NULL);
 
     return 0;
 }
@@ -59,25 +61,39 @@ void signal_handler(int sig){
 }
 
 void check_before_running(char* username){
-    FILE* omreport = NULL;
+    FILE* command = NULL;
     char buf[ERROR_MSG_LEN] = { '\0' };
 
     if (geteuid() != 0) { // Check the program is run with root privileges.
-        printf("\nThis program must be running with root privileges. (using sudo or as root)...\nexit.\n\n");
+        printf("\nThis program must be running with root privileges. (using sudo or as root)...\n\nexit.\n\n");
         exit(-1);
     }
 
-    if ((omreport = popen("/opt/dell/srvadmin/bin/omreport 2>&1", "r")) == NULL) {
+    if ((command = popen(CHECK_OMREPORT, "r")) == NULL) {
         printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
     } else {
-        fgets(buf, sizeof(buf), omreport);
-        if (strstr(buf, "command not found") != NULL){
-            printf("\nOMSA (OpenManage Server Administrator) is not installed..");
-            printf("\nPlease install OMSA. (Package Name: OM-SrvAdmin-Dell-Web-LX)");
-            printf("\nTo download rpm package, please visit DELL Website.\nexit.\n\n");
+        fgets(buf, sizeof(buf), command);
+        if (strstr(buf, "No such file or directory") != NULL){
+            printf("\n- OMSA (OpenManage Server Administrator) is not installed..");
+            printf("\n- Please install OMSA. (Package Name: OM-SrvAdmin-Dell-Web-LX)");
+            printf("\n- To download rpm package, please visit DELL Website.\n\nexit.\n\n");
             exit(-1);
         }
-        pclose(omreport);
+        pclose(command);
+    }
+
+    if ((command = popen(CHECK_PERCCLI, "r")) == NULL) {
+        printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
+    } else {
+        fgets(buf, sizeof(buf), command);
+        if (strstr(buf, "No such file or directory") != NULL){
+            printf("\n- PERCCLI(PERC controller CLI utility) is not installed..");
+            printf("\n- Please install Perccli. (Package Name: Perccli)");
+            printf("\n- To download rpm package, please visit DELL Website.");
+            printf("\n- This program uses perccli64. If the system is 32bit, Edit define macro. (Is in 0_usrDefine.h)\n\nexit.\n\n");
+            exit(-1);
+        }
+        pclose(command);
     }
 
     if (check_Log_Directory(HISTORY_PATH, 0750) == -1){ // Check the presense of "/var/log/00_Server_Monitoring/00_history" directory. (History file is saved to this.)

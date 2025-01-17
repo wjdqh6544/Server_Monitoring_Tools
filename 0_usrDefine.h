@@ -3,36 +3,58 @@
 #define USRDEFINE_H
 
 #define UNIT_COUNT 6
-#define DISK_COUNT 16
 
 /* Common */
+#define CHECK_OMREPORT "/opt/dell/srvadmin/bin/omreport 2>&1"
+#define CHECK_PERCCLI "/opt/MegaRAID/perccli/perccli64 2>&1"
 #define ERROR_MSG_LEN 256
+#define CPU_TEMP_CRITICAL_PERCENT 65
+#define CPU_USAGE_CRITICAL_PERCENT 85
+#define DISK_USAGE_CRITICAL_PERCENT 85
+#define MEM_USAGE_CRITICAL_PERCENT 85
+#define RAID_CORE_TEMP_CRITICAL_PERCENT 65
+#define RAID_CONTROLLER_TEMP_CRITICAL_PERCENT 55
+#define STORAGE_TEMP_CRITICAL_PERCENT 60
+#define SWAP_USAGE_CRITICAL_PERCENT 0
 
 /* Main Program */
 #define ERROR_LOG_MAIN "/var/log/00_Server_Monitoring/main_program_log"
 
+/* Warning Log */
+
 /* Information to Log */
-#define LOG_PATH "/var/log/00_Server_Monitoring"
-#define HISTORY_PATH "/var/log/00_Server_Monitoring/00_history" // 40
 #define ERROR_LOG_COLLECTOR "/var/log/00_Server_Monitoring/collector_log"
+#define HISTORY_PATH "/var/log/00_Server_Monitoring/00_history" // 40
+#define LOG_PATH "/var/log/00_Server_Monitoring"
 #define USERNAME_LEN 64
 
 /* Information to Log - Temperature */
+#define CPU1_TEMP "CPU1"
+#define CPU2_TEMP "CPU2"
+#define STORAGE_TEMP_FORM "Drive Temperature = %hdC%*s"
+#define EXHAUST_TEMP "Exhaust"
+#define GET_TEMP_OMREPORT_COMMAND "/opt/dell/srvadmin/bin/omreport chassis temps"
+#define GET_RAID_TEMP_PERCCLI_COMMAND "/opt/MegaRAID/perccli/perccli64 /c0 show temperature"
+#define GET_STORAGE_TEMP_PERCCLI_COMMAND "/opt/MegaRAID/perccli/perccli64 /c0/eall/sall show all | grep Temperature"
+#define INLET_TEMP "Inlet"
+#define MAX_CPU_COUNT 2
+#define MAX_DISK_COUNT 16
 #define MAX_LOG_PATH_LEN 70 // LogFile Location: /var/log/~: 40(path) + 29(filename: <type>_history-YYYYDDMM)
-#define GET_TEMP_COMMAND "/opt/dell/srvadmin/bin/omreport chassis temps"
-#define TEMP_MAX_LINE 128
-#define TEMP_LOG "temperature_history"
-#define STAT_LOCATION "/proc/stat"
+#define RAID_CORE_TEMP "ROC temperature(Degree Celsius)"
+#define RAID_CTRL_TEMP "Ctrl temperature(Degree Celsius)"
 #define STAT_FORM "cpu  %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld"
+#define STAT_LOCATION "/proc/stat"
+#define TEMP_LOG "temperature_history"
+#define TEMP_MAX_LINE 128
 
 /* Information to Log - Usage */
-#define USAGE_LOG "usage_history"
+#define MEMFREE "MemAvailable:"
 #define MEMINFO_MAX_LINE 64
 #define MEMINFO_LOCATION "/proc/meminfo"
 #define MEMINFO_FORM "%s %ld"
 #define MEMTOTAL "MemTotal:"
-#define MEMFREE "MemAvailable:"
 #define SWAPTOTAL "SwapTotal:"
 #define SWAPFREE "SwapFree:"
+#define USAGE_LOG "usage_history"
 
 #endif
