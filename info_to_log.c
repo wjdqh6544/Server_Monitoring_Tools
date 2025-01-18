@@ -12,22 +12,14 @@
 extern DateInfo dateBuf;
 
 void* write_Temperature_to_Log(){ // Write temperature information to Log file.
-    int fd = -1, bytes = 0;
-    TempLog tempBuf, privBuf;
+    int fd = -1;
+    TempLog tempBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
 
     while(1){
-        get_Filename(fullpath, HISTORY_PATH, TEMP_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/Temperature_history-YYYYMMDD
-        if ((fd = open(fullpath, O_RDWR | O_CREAT | O_APPEND, 0640)) == -1){
+        get_Filename(fullpath, HISTORY_PATH, TEMP_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/temperature_history-YYYYMMDD
+        if ((fd = open(fullpath, O_WRONLY | O_CREAT | O_APPEND, 0640)) == -1){
             exception(-1, "write_Temperature_to_Log", fullpath);
-            return NULL;
-        }
-
-        lseek(fd, -sizeof(TempLog), SEEK_END); // Read last recorded date (for writing the data with 1sec interval)
-        bytes = read(fd, &privBuf, sizeof(TempLog));
-
-        if ((bytes != sizeof(TempLog)) && (bytes > 0)){ 
-            exception(-2, "write_Temperature_to_Log", "<Read data size> != sizeof(TempLog) - for checking date");
             return NULL;
         }
 
@@ -37,32 +29,21 @@ void* write_Temperature_to_Log(){ // Write temperature information to Log file.
         if (write(fd, &tempBuf, sizeof(TempLog)) != sizeof(TempLog)) {
             exception(-3, "write_Temperature_to_Log", "<Writed data size> != sizeof(TempLog)");
         }
-
         close(fd); 
-
         sleep(1);   
     }
-
     return NULL;
 }
 
 void* write_Usage_to_Log(){ // Write usage information to Log file.
-    int fd = -1, bytes = 0;
-    UsageLog usageBuf, privBuf;
+    int fd = -1;
+    UsageLog usageBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
 
     while(1){
-        get_Filename(fullpath, HISTORY_PATH, USAGE_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/Usage_history-YYYYMMDD
-        if ((fd = open(fullpath, O_RDWR | O_CREAT | O_APPEND, 0640)) == -1){
+        get_Filename(fullpath, HISTORY_PATH, USAGE_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/usage_history-YYYYMMDD
+        if ((fd = open(fullpath, O_WRONLY | O_CREAT | O_APPEND, 0640)) == -1){
             exception(-1, "write_Usage_to_Log", fullpath);
-            return NULL;
-        }
-
-        lseek(fd, -sizeof(UsageLog), SEEK_END); // Read last recorded date (for writing the data with 1sec interval)
-        bytes = read(fd, &privBuf, sizeof(UsageLog));
-
-        if ((bytes != sizeof(UsageLog)) && (bytes > 0)) {
-            exception(-2, "write_Usage_to_Log", "<Read data size> != sizeof(UsageLog) - for checking date");
             return NULL;
         }
 
@@ -73,18 +54,40 @@ void* write_Usage_to_Log(){ // Write usage information to Log file.
         if (write(fd, &usageBuf, sizeof(UsageLog)) != sizeof(UsageLog)) {
             exception(-3, "write_Usage_to_Log", "<Writed data size> != sizeof(UsageLog)");
         }
-
         close(fd);
-
         sleep(1);
     }
-
     return NULL;
 }
 
-// void* write_Warning_to_Log(){ // Write temperature and usage to Log If the value is more than or equal to the critical point.
-//     int fd = -1;
-// }
+void* write_Warning_to_Log(){ // Write temperature and usage to Log If the value is more than or equal to the critical point.
+    int fd = -1;
+    WarningLog warningBuf;
+    char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
+
+    while(1){
+        get_Filename(fullpath, HISTORY_PATH, WARNING_LOG, &dateBuf); // Destination: /var/log/00_Server_Monitoring/00_history/warning_history-YYYYMM
+        if ((fd = open(fullpath, O_WRONLY | O_CREAT | O_APPEND, 0640)) == -1) {
+            exception(-1, "write_Warning_to_Log", fullpath);
+            return NULL;
+        }
+
+        get_Temperature(&(warningBuf.temp));
+        get_CPU_Usage(&(warningBuf.cpuUsage));
+        get_Memory_Usage(&(warningBuf.memUsage));
+
+        // Temperature and usage data is written to Log file If the value that is more than or equal to the critical point is exist.
+        if (over_Critical_Point(&warningBuf) == 1) { 
+            warningBuf.date = dateBuf;
+            if (write(fd, &warningBuf, sizeof(WarningLog)) != sizeof(WarningLog)) {
+                exception(-3, "write_Warning_to_Log", "<Writed data size> != sizeof(WarningLog)");
+            }
+        }
+        close(fd);
+        sleep(1);
+    }
+    return NULL;
+}
 
 void get_Temperature(TempInfo* tempBuf){ // For getting temperature, Initialize storage value.
     tempBuf->inlet = -100; // Initialization; -100 means "N/A"
@@ -93,7 +96,7 @@ void get_Temperature(TempInfo* tempBuf){ // For getting temperature, Initialize 
     tempBuf->raidCore = -100;
     tempBuf->raidController = -100;
     tempBuf->storage_cnt = 0;
-    for (int i = 0; i < MAX_DISK_COUNT; tempBuf->storage[i++] = -100);
+    for (int i = 0; i < MAX_STORAGE_COUNT; tempBuf->storage[i++] = -100);
 
     get_Temperature_Omreport(tempBuf);
     get_Temperature_Perccli(tempBuf);
@@ -226,4 +229,57 @@ void get_Memory_Usage(MemUsage* memUsageBuf){ // Get Memory (Physical / SWAP) Si
         memUsageBuf->swapTotal = 0;
         return;
     }
+}
+
+int over_Critical_Point(WarningLog* warningBuf) { /* Check whether the data is more than or equal to the critical point.
+    If both temperature and usage is more than or equal to the critical point, The usage is first.
+    That is, when this situation, the value of "type" in struct variable is "1".
+    To see the value of "type" in struct variable, See define macro. (In 0_usrDefine.h, Warning Log)
+    */
+
+    if (get_Memory_Usage_Percent(warningBuf->memUsage.memTotal, warningBuf->memUsage.memUse) >= MEM_USAGE_CRITICAL_PERCENT) {
+        warningBuf->type = TYPE_MEM_USAGE;
+        return 1;
+    }
+
+    if (warningBuf->cpuUsage.usage >= CPU_USAGE_CRITICAL_PERCENT) {
+        warningBuf->type = TYPE_CPU_USAGE;
+        return 1;
+    }
+
+    for (int i = 0; i < MAX_CPU_COUNT; i++){
+        if (warningBuf->temp.cpu[i] >= CPU_TEMP_CRITICAL_POINT) {
+            warningBuf->type = TYPE_CPU_TEMP;
+            return 1;
+        }
+    }
+
+    for (int i = 0; i < MAX_STORAGE_COUNT; i++){
+        if (warningBuf->temp.storage[i] >= STORAGE_TEMP_CRITICAL_POINT) {
+            warningBuf->type = TYPE_STORAGE_TEMP;
+            return 1;
+        }
+    }
+
+    if (warningBuf->temp.raidCore >= RAID_CORE_TEMP_CRITICAL_POINT) {
+        warningBuf->type = TYPE_RAID_CORE_TEMP;
+        return 1;
+    }
+
+    if (warningBuf->temp.raidController >= RAID_CTRL_TEMP_CRITICAL_POINT) {
+        warningBuf->type = TYPE_RAID_CTRL_TEMP;
+        return 1;
+    }
+
+    if (warningBuf->temp.exhaust >= EXHAUST_TEMP_CRITICAL_POINT) {
+        warningBuf->type = TYPE_EXHAUST_TEMP;
+        return 1;
+    }
+
+    if (warningBuf->temp.inlet >= INLET_TEMP_CRITICAL_POINT) {
+        warningBuf->type = TYPE_INLET_TEMP;
+        return 1;
+    }
+
+    return 0;
 }

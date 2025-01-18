@@ -29,7 +29,7 @@ typedef struct TempInfo { // Celcius
     short raidCore;
     short raidController;
     short storage_cnt;
-    short storage[MAX_DISK_COUNT];
+    short storage[MAX_STORAGE_COUNT];
 } TempInfo;
 
 typedef struct CpuUsage { // %
@@ -61,6 +61,6 @@ typedef struct WarningLog {
     CpuUsage cpuUsage;
     MemUsage memUsage;
     short type;
-} TempWarning;
+} WarningLog;
 
 #endif

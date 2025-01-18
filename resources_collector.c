@@ -21,7 +21,7 @@ void IO_Redirection();
 void* refresh_now_Date();
 int main(void){
     struct sigaction sa;
-    pthread_t date, temp, usage;//, warning;
+    pthread_t date, temp, usage, warning;
     char username[USERNAME_LEN] = { '\0' };
 
     sa.sa_handler = signal_handler;
@@ -41,12 +41,12 @@ int main(void){
     pthread_create(&date, NULL, refresh_now_Date, NULL);
     pthread_create(&temp, NULL, write_Temperature_to_Log, NULL);
     pthread_create(&usage, NULL, write_Usage_to_Log, NULL);
-    // pthread_create(&warning, NULL, write_Warning_to_Log, NULL);
+    pthread_create(&warning, NULL, write_Warning_to_Log, NULL);
 
     pthread_join(date, NULL);
     pthread_join(temp, NULL);
     pthread_join(usage, NULL);
-    // pthread_join(warning, NULL);
+    pthread_join(warning, NULL);
 
     return 0;
 }

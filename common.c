@@ -44,21 +44,20 @@ void exception(short code, char *func_name, char *detail){
     printf("%04d-%02d-%02d %02d:%02d:%02d (func. - %s) Cannot %s: %s\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec, func_name, type, detail_str);
 }
 
-double convert_Size_Unit(size_t size, UNIT unit){ // Convert to the largest capacity unit. (Minimum: KB / ex. 1,048,576 KB -> 1 GB)
-    double res = (double)size;
-    for (int i = 0; i < (int)unit; i++){
-        res /= 1024;
-    }
-    return res;
-}
-
 void get_Filename(char* fullpathBuf, char* path, char* filename, DateInfo* targetDate){ // Create a full path of Log file.
     if (path[strlen(path) - 1] == '/'){ // filename form: <type>-YYYYMMDD
-        sprintf(fullpathBuf, "%s%s-%04d%02d%02d", path, filename, targetDate->year, targetDate->month, targetDate->day); // <path(Directory)>/<type>-YYYYMMDD
+        if (strcmp(filename, WARNING_LOG) == 0) {
+            sprintf(fullpathBuf, "%s%s-%04d%02d", path, filename, targetDate->year, targetDate->month); // <path(Directory)>/warning_history-YYYYMM
+        } else {
+            sprintf(fullpathBuf, "%s%s-%04d%02d%02d", path, filename, targetDate->year, targetDate->month, targetDate->day); // <path(Directory)>/<type>-YYYYMMDD
+        }
     } else {
-        sprintf(fullpathBuf, "%s/%s-%04d%02d%02d", path, filename, targetDate->year, targetDate->month, targetDate->day);
+        if (strcmp(filename, WARNING_LOG) == 0){
+            sprintf(fullpathBuf, "%s/%s-%04d%02d", path, filename, targetDate->year, targetDate->month); // <path(Directory)>/warning_history-YYYYMM
+        } else {
+            sprintf(fullpathBuf, "%s/%s-%04d%02d%02d", path, filename, targetDate->year, targetDate->month, targetDate->day); // <path(Directory)>/<type>-YYYYMMDD
+        }
     }
-    
 }
 
 short check_Log_Directory(char* fullpath, mode_t permissions){ // Check the presence of directory, and Create it if not exists.
@@ -90,3 +89,6 @@ short check_Log_Directory(char* fullpath, mode_t permissions){ // Check the pres
     return 0;
 }
 
+float get_Memory_Usage_Percent(size_t total, size_t use) { // Calculate the percent of Memory Usage
+    return (float)((use / (double)total) * 100);
+}
