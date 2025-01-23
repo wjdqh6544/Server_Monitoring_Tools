@@ -8,6 +8,7 @@ void get_Date();
 void exception(short code, char *func_name, char *detail);
 void get_Filename(char* fullpathBuf, char* path, char* filename, DateInfo* targetDate);
 short check_Log_Directory(char* fullpath, mode_t permissions);
-float get_Memory_Usage_Percent(size_t total, size_t use);
+float get_Capacity_Percent(size_t total, size_t use);
+double convert_Size_Unit(size_t size, int autoUnit, UNIT* unit);
 
 #endif

@@ -40,6 +40,9 @@ void exception(short code, char *func_name, char *detail){
         case -4:
             strcpy(type, "Invoke System Call");
             break;
+        case -5:
+            printf("%04d-%02d-%02d %02d:%02d:%02d (func. - %s) Invalid function parameter: %s\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec, func_name, detail_str);
+            return;
     }
     printf("%04d-%02d-%02d %02d:%02d:%02d (func. - %s) Cannot %s: %s\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec, func_name, type, detail_str);
 }
@@ -89,6 +92,23 @@ short check_Log_Directory(char* fullpath, mode_t permissions){ // Check the pres
     return 0;
 }
 
-float get_Memory_Usage_Percent(size_t total, size_t use) { // Calculate the percent of Memory Usage
+float get_Capacity_Percent(size_t total, size_t use) { // Calculate the percent of Used space
+    (total == 0) ? exception(-5, "get_Capacity_Percent", "Total value cannot be 0") : 0;
     return (float)((use / (double)total) * 100);
+}
+
+double convert_Size_Unit(size_t size, int autoUnit, UNIT* unit){ // Convert to the largest capacity unit. (Minimum: KB / ex. 1,048,576 KB -> 1 GB)
+    double res = (double)size;
+    int i = 0;
+    if (autoUnit == 1){ // Convert size to largest unit automatically.
+        for (i = 0; ((res >= 1024) && (i < UNIT_COUNT)); i++) {
+            res /= 1024;
+        }
+        *unit = (UNIT)i; // Return converted unit.
+    } else { // Convert size to entered Unit.
+        for (i = 0; i < (int)(*unit); i++){
+            res /= 1024;
+        }
+    }
+    return res;
 }
