@@ -1,6 +1,6 @@
-#ifndef STRUCT
+#ifndef STRUCT_H
 
-#define STRUCT
+#define STRUCT_H
 #include "0_usrDefine.h"
 #include <stdlib.h>
 
@@ -21,6 +21,15 @@ typedef struct Unit_Mapping {
     char* str;
 } Unit_Mapping;
 
+/* Disk Information*/
+typedef struct PartitionInfo {
+    char fileSystem[MAX_FILESYSTEM_LEN];
+    char mountPath[MAX_MOUNTPATH_LEN];
+    size_t spaceTotal;
+    size_t spaceUse;
+} PartitionInfo;
+
+
 /* Temp, Usage Information */
 typedef struct TempInfo { // Celcius
     short inlet;
@@ -28,6 +37,7 @@ typedef struct TempInfo { // Celcius
     short cpu[MAX_CPU_COUNT];
     short raidCore;
     short raidController;
+    short bbu;
     short storage_cnt;
     short storage[MAX_STORAGE_COUNT];
 } TempInfo;

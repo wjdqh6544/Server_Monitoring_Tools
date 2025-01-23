@@ -24,7 +24,7 @@ void* write_Temperature_to_Log(){ // Write temperature information to Log file.
         }
 
         tempBuf.date = dateBuf;
-        get_Temperature(&(tempBuf.temp));
+        get_Temperature_from_System(&(tempBuf.temp));
 
         if (write(fd, &tempBuf, sizeof(TempLog)) != sizeof(TempLog)) {
             exception(-3, "write_Temperature_to_Log", "<Writed data size> != sizeof(TempLog)");
@@ -48,7 +48,7 @@ void* write_Usage_to_Log(){ // Write usage information to Log file.
         }
 
         usageBuf.date = dateBuf;
-        get_CPU_Usage(&(usageBuf.cpu));
+        get_CPU_Usage_Percent_of_All_Core(&(usageBuf.cpu));
         get_Memory_Usage(&(usageBuf.mem));
 
         if (write(fd, &usageBuf, sizeof(UsageLog)) != sizeof(UsageLog)) {
@@ -72,8 +72,8 @@ void* write_Warning_to_Log(){ // Write temperature and usage to Log If the value
             return NULL;
         }
 
-        get_Temperature(&(warningBuf.temp));
-        get_CPU_Usage(&(warningBuf.cpuUsage));
+        get_Temperature_from_System(&(warningBuf.temp));
+        get_CPU_Usage_Percent_of_All_Core(&(warningBuf.cpuUsage));
         get_Memory_Usage(&(warningBuf.memUsage));
 
         // Temperature and usage data is written to Log file If the value that is more than or equal to the critical point is exist.
@@ -89,12 +89,14 @@ void* write_Warning_to_Log(){ // Write temperature and usage to Log If the value
     return NULL;
 }
 
-void get_Temperature(TempInfo* tempBuf){ // For getting temperature, Initialize storage value.
+void get_Temperature_from_System(TempInfo* tempBuf){  // Get temperature information
+    // For getting temperature, Initialize storage value.
     tempBuf->inlet = -100; // Initialization; -100 means "N/A"
     tempBuf->exhaust = -100;
     for (int i = 0; i < MAX_CPU_COUNT; tempBuf->cpu[i++] = -100);
     tempBuf->raidCore = -100;
     tempBuf->raidController = -100;
+    tempBuf->bbu = -100;
     tempBuf->storage_cnt = 0;
     for (int i = 0; i < MAX_STORAGE_COUNT; tempBuf->storage[i++] = -100);
 
@@ -102,7 +104,7 @@ void get_Temperature(TempInfo* tempBuf){ // For getting temperature, Initialize 
     get_Temperature_Perccli(tempBuf);
 }
 
-void get_Temperature_Omreport(TempInfo* tempBuf){ // Get Temperature Information from omreport
+void get_Temperature_Omreport(TempInfo* tempBuf){ // Get temperature information from omreport
     FILE* omreport_ptr = NULL;
     char lineBuf[TEMP_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
@@ -135,13 +137,13 @@ void get_Temperature_Omreport(TempInfo* tempBuf){ // Get Temperature Information
     pclose(omreport_ptr);
 }
 
-void get_Temperature_Perccli(TempInfo* tempBuf){
+void get_Temperature_Perccli(TempInfo* tempBuf){ // Get temperature information from perccli
     FILE* perccli_ptr = NULL;
     char lineBuf[TEMP_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
 
     if ((perccli_ptr = popen(GET_RAID_TEMP_PERCCLI_COMMAND, "r")) == NULL){ // Get raw data of a RAID Card from perccli
-        exception(-2, "get_Temperature_Perccli", "Perccli");
+        exception(-2, "get_Temperature_Perccli", "Perccli - HBA");
         return;
     }
 
@@ -156,7 +158,7 @@ void get_Temperature_Perccli(TempInfo* tempBuf){
     pclose(perccli_ptr);
 
     if ((perccli_ptr = popen(GET_STORAGE_TEMP_PERCCLI_COMMAND, "r")) == NULL){ // Get raw data of a RAID Card from perccli
-        exception(-2, "get_Temperature_Perccli", "Perccli");
+        exception(-2, "get_Temperature_Perccli", "Perccli - Storage");
         return;
     }
 
@@ -166,16 +168,30 @@ void get_Temperature_Perccli(TempInfo* tempBuf){
     }
 
     pclose(perccli_ptr);
+
+    if ((perccli_ptr = popen(GET_BBU_TEMP_COMMAND, "r")) == NULL){ // Get raw data of a BBU (Battery Backup Unit)
+        exception(-2, "get_Temperature_Perccli", "Perccli - BBU");
+        return;
+    }
+
+    for (short i = 0; (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL); i++) {
+        if ((targetPos = strstr(lineBuf, BBU_TEMP)) != NULL) { // Extract BBU Temperature
+            sscanf(targetPos + strlen(BBU_TEMP), "%hd", &(tempBuf->bbu));
+            break;
+        }
+    }
+
+    pclose(perccli_ptr);
 }
 
-void get_CPU_Usage(CpuUsage* cpuUsageBuf){ // Get CPU Usage(%) from Jiffies
+void get_CPU_Usage_Percent_of_All_Core(CpuUsage* cpuUsageBuf){ // Get CPU Usage(%) from Jiffies
     unsigned long user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;
     static unsigned long priv_total = 0, priv_idle = 0;
     FILE *fp = NULL;
     cpuUsageBuf->usage = -100; // Initialization; -100 means "N/A"
 
     if ((fp = fopen(STAT_LOCATION, "r")) == NULL) {
-        exception(-1, "get_CPU_Usage", STAT_LOCATION);
+        exception(-1, "get_CPU_Usage_Percent_of_All_Core", STAT_LOCATION);
         return;
     }
 
@@ -205,20 +221,20 @@ void get_Memory_Usage(MemUsage* memUsageBuf){ // Get Memory (Physical / SWAP) Si
     }
 
     while (fscanf(fp, MEMINFO_FORM, buf, &size_tmp_buf) != EOF) { // Read and extract memory size
-        if (strcmp(buf, MEMTOTAL) == 0) {
+        if (strcmp(buf, MEMTOTAL) == 0) { // Extract total physical memory capacity.
             memUsageBuf->memTotal = size_tmp_buf;
-        } else if (strcmp(buf, MEMFREE) == 0) {
+        } else if (strcmp(buf, MEMFREE) == 0) { // Extract free capacity of physical memory. -> It will be converted to used memory capacity later. (Total - Free)
             memUsageBuf->memUse = size_tmp_buf;
-        } else if (strcmp(buf, SWAPTOTAL) == 0) {
+        } else if (strcmp(buf, SWAPTOTAL) == 0) { // Extract total SWAP memory capacity.
             memUsageBuf->swapTotal = size_tmp_buf;
-        } else if (strcmp(buf, SWAPFREE) == 0) {
+        } else if (strcmp(buf, SWAPFREE) == 0) { // Extract free capacity of SWAP memory. -> It will be converted to used memory capacity later. (Total - Free)
             memUsageBuf->swapUse = size_tmp_buf;
         } else {
             continue;
         }
     }
-    memUsageBuf->memUse = memUsageBuf->memTotal - memUsageBuf->memUse;
-    memUsageBuf->swapUse = memUsageBuf->swapTotal - memUsageBuf->swapUse;
+    memUsageBuf->memUse = memUsageBuf->memTotal - memUsageBuf->memUse; // Calculate using memory capacity. (Physical)
+    memUsageBuf->swapUse = memUsageBuf->swapTotal - memUsageBuf->swapUse; // Calculate using memory capacity. (SWAP)
     fclose(fp);
 
     if (memUsageBuf->memTotal <= 0){ // Memory Capacity (Free, Total) Reading ERROR
@@ -237,46 +253,46 @@ int over_Critical_Point(WarningLog* warningBuf) { /* Check whether the data is m
     To see the value of "type" in struct variable, See define macro. (In 0_usrDefine.h, Warning Log)
     */
 
-    if (get_Memory_Usage_Percent(warningBuf->memUsage.memTotal, warningBuf->memUsage.memUse) >= MEM_USAGE_CRITICAL_PERCENT) {
+    if (get_Capacity_Percent(warningBuf->memUsage.memTotal, warningBuf->memUsage.memUse) >= MEM_USAGE_CRITICAL_PERCENT) { // Used Memory Space (%)
         warningBuf->type = TYPE_MEM_USAGE;
         return 1;
     }
 
-    if (warningBuf->cpuUsage.usage >= CPU_USAGE_CRITICAL_PERCENT) {
+    if (warningBuf->cpuUsage.usage >= CPU_USAGE_CRITICAL_PERCENT) { // CPU Usage (%)
         warningBuf->type = TYPE_CPU_USAGE;
         return 1;
     }
 
     for (int i = 0; i < MAX_CPU_COUNT; i++){
-        if (warningBuf->temp.cpu[i] >= CPU_TEMP_CRITICAL_POINT) {
+        if (warningBuf->temp.cpu[i] >= CPU_TEMP_CRITICAL_POINT) { // CPU Temperature (Celcius)
             warningBuf->type = TYPE_CPU_TEMP;
             return 1;
         }
     }
 
     for (int i = 0; i < MAX_STORAGE_COUNT; i++){
-        if (warningBuf->temp.storage[i] >= STORAGE_TEMP_CRITICAL_POINT) {
+        if (warningBuf->temp.storage[i] >= STORAGE_TEMP_CRITICAL_POINT) { // Storage Temperature (Celcius)
             warningBuf->type = TYPE_STORAGE_TEMP;
             return 1;
         }
     }
 
-    if (warningBuf->temp.raidCore >= RAID_CORE_TEMP_CRITICAL_POINT) {
+    if (warningBuf->temp.raidCore >= RAID_CORE_TEMP_CRITICAL_POINT) { // RAID Card Core Temperature (Celcius)
         warningBuf->type = TYPE_RAID_CORE_TEMP;
         return 1;
     }
 
-    if (warningBuf->temp.raidController >= RAID_CTRL_TEMP_CRITICAL_POINT) {
+    if (warningBuf->temp.raidController >= RAID_CTRL_TEMP_CRITICAL_POINT) { // RAID Card Controller Temperature (Celcius)
         warningBuf->type = TYPE_RAID_CTRL_TEMP;
         return 1;
     }
 
-    if (warningBuf->temp.exhaust >= EXHAUST_TEMP_CRITICAL_POINT) {
+    if (warningBuf->temp.exhaust >= EXHAUST_TEMP_CRITICAL_POINT) { // Exhaust air temperautre from Server Unit (Celcius)
         warningBuf->type = TYPE_EXHAUST_TEMP;
         return 1;
     }
 
-    if (warningBuf->temp.inlet >= INLET_TEMP_CRITICAL_POINT) {
+    if (warningBuf->temp.inlet >= INLET_TEMP_CRITICAL_POINT) { // Inlet air temperature to Server Unit (Celcius)
         warningBuf->type = TYPE_INLET_TEMP;
         return 1;
     }
