@@ -6,13 +6,278 @@
 #include <string.h>
 #include <dirent.h>
 
-// int get_Disk_Information_from_Perccli(){
+extern Unit_Mapping unitMap[];
 
-// }
-
-void get_CPU_Usage_Percent_of_each_Core(float** usage_buf_ptr){ // Get CPU usage percent of each Cor from Jiffies.
+/* Functions that get disk information from perccli */
+int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
     // usage_buf_ptr -> Pointer of float Array. Array is made in this function.
-    unsigned long user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0; // 10코어에 대한 priv 값 저장필요.
+    FILE* perccli_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, capUnitBuf[BUF_MAX_LINE], statusBuf[BUF_MAX_LINE], driveGroupBuf[BUF_MAX_LINE], mediaTypeBuf[BUF_MAX_LINE], interfaceBuf[BUF_MAX_LINE];
+    char* targetPos = NULL;
+
+    if ((perccli_ptr = popen(GET_DISK_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_Disk_Information_from_Perccli", "Perccli - Disk");
+        return -100;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        if ((targetPos = strstr(lineBuf, DISK_PHYSICAL_COUNT)) != NULL) { // Extract the number of disk
+            sscanf(targetPos += strlen(DISK_PHYSICAL_COUNT), "%d", diskCount);
+            break;
+        }
+    }
+
+    *diskBuf = (DiskInfo*)malloc((*diskCount) * sizeof(DiskInfo));
+
+    for (int i = 0; i < *diskCount; i++) { // Initialization
+        (*diskBuf)[i].enclosureNum = -100;
+        (*diskBuf)[i].slotNum = -100; 
+        (*diskBuf)[i].deviceID = -100;
+        (*diskBuf)[i].driveGroup = -100;
+        (*diskBuf)[i].status = -100;
+        (*diskBuf)[i].modelName[0] = '\0';
+        (*diskBuf)[i].capacity[0] = '\0';
+        (*diskBuf)[i].capUnit = -100;
+        (*diskBuf)[i].mediaType = -100;
+        (*diskBuf)[i].interface = -100;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) { // Extract disk information
+        if (strstr(lineBuf, DISK_PD_LIST) != NULL) {
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // =========
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // \n
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // ----------------------------------------------------------------
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // EID:Slt DID State DG    Size Intf Med SED PI SeSz Model  Sp Type
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // ----------------------------------------------------------------
+            for (int i = 0; i < *diskCount; i++){ // Extract disk information (Content)
+                fgets(lineBuf, sizeof(lineBuf), perccli_ptr);
+                sscanf(lineBuf, "%hd:%hd %hd %s %s %s %s %s %s", &((*diskBuf)[i].enclosureNum), &((*diskBuf)[i].slotNum), &((*diskBuf)[i].deviceID), statusBuf, driveGroupBuf, 
+                (*diskBuf)[i].capacity, capUnitBuf, interfaceBuf, mediaTypeBuf);
+
+                if (strcmp(statusBuf, DISK_STATE_ONLINE) == 0) { // Convert "state" String to numeric code.
+                    (*diskBuf)[i].status = TYPE_DISK_STATE_ONLINE;
+                } else if (strcmp(statusBuf, DISK_STATE_OFFLINE) == 0) {
+                    (*diskBuf)[i].status = TYPE_DISK_STATE_OFFLINE;
+                } else if (strcmp(statusBuf, DISK_STATE_GHS) == 0) {
+                    (*diskBuf)[i].status = TYPE_DISK_STATE_GHS;
+                } else if (strcmp(statusBuf, DISK_STATE_DHS) == 0) {
+                    (*diskBuf)[i].status = TYPE_DISK_STATE_DHS;
+                } else if (strcmp(statusBuf, DISK_STATE_UGOOD) == 0) {
+                    (*diskBuf)[i].status = TYPE_DISK_STATE_UGOOD;
+                } else if (strcmp(statusBuf, DISK_STATE_UBAD) == 0) {
+                    (*diskBuf)[i].status = TYPE_DISK_STATE_UBAD;
+                } else if (strcmp(statusBuf, DISK_STATE_SANI) == 0) {
+                    (*diskBuf)[i].status = TYPE_DISK_STATE_SANI;
+                } else {
+                    (*diskBuf)[i].status = -100;
+                }
+
+                (*diskBuf)[i].driveGroup = ((strcmp(driveGroupBuf, "-") == 0) ? -100 : atoi(driveGroupBuf)); // Convert "driveGroup" String to numeric code.
+
+                for (int j = 0 ; j < UNIT_COUNT; j++) { // Convert "Capacity Unit" String to numeric code.
+                    if (strcmp(capUnitBuf, unitMap[j].str) == 0) {
+                        (*diskBuf)[i].capUnit = (short)j;
+                        break;
+                    }
+                }
+
+                if (strcmp(interfaceBuf, DISK_INTERFACE_SATA) == 0) { // Convert "interface" String to numeric code.
+                    (*diskBuf)[i].interface = TYPE_DISK_INTERFACE_SATA;
+                } else if (strcmp(interfaceBuf, DISK_INTERFACE_SAS) == 0) {
+                    (*diskBuf)[i].interface = TYPE_DISK_INTERFACE_SAS;
+                } else {
+                    (*diskBuf)[i].interface = -100;
+                }
+
+                if (strcmp(mediaTypeBuf, DISK_MEDIATYPE_SSD) == 0) { // Convert "mediaType" String to numeric code. 
+                    (*diskBuf)[i].mediaType = TYPE_DISK_MEDIATYPE_SSD;
+                } else if (strcmp(mediaTypeBuf, DISK_MEDIATYPE_HDD) == 0) {
+                    (*diskBuf)[i].mediaType = TYPE_DISK_MEDIATYPE_HDD;
+                } else if (strcmp(mediaTypeBuf, DISK_MEDIATYPE_SSHD) == 0) {
+                    (*diskBuf)[i].mediaType = TYPE_DISK_MEDIATYPE_SSHD;
+                } else {
+                    (*diskBuf)[i].mediaType = -100;
+                }
+            }
+        }
+    }
+
+    pclose(perccli_ptr);
+
+    get_Disk_Product_Name_from_Perccli(*diskBuf, *diskCount);
+
+    return 0;
+}
+
+void get_Disk_Product_Name_from_Perccli(DiskInfo* diskBuf, int diskCount){ // Get disk product name
+    FILE* perccli_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE], searchStr[BUF_MAX_LINE];
+    char* targetPos = NULL;
+
+    if ((perccli_ptr = popen(GET_DISK_NAME, "r")) == NULL) {
+        exception(-2, "get_Disk_Product_Name_from_Percli", "Perccli - Disk");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        if (strstr(lineBuf, DISK_NAME_FILTER) != NULL){
+            for (int i = 0; i < diskCount; i++){
+                sprintf(searchStr, DISK_NAME_FORM, diskBuf[i].enclosureNum, diskBuf[i].slotNum);
+                if (strstr(lineBuf, searchStr) != NULL) { // Extract the product name of disk
+                    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+                        if ((targetPos = strstr(lineBuf, DISK_NAME)) != NULL){
+                            sscanf(targetPos += strlen(DISK_NAME), "%[^\n]s", diskBuf[i].modelName);
+                            remove_Space_of_Tail(diskBuf[i].modelName);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pclose(perccli_ptr);
+}
+
+/* Functions that get HBA Card information from perccli */
+int get_HBA_Information_from_Perccli(HBAInfo* HBABuf){ // Get HBA Card information from Perccli command.
+    FILE* perccli_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE];
+    char* targetPos = NULL;
+
+    HBABuf->HBA_Name[0] = '\0'; // Initialization
+    HBABuf->HBA_Bios_Ver[0] = '\0';
+    HBABuf->HBA_Serial_Num[0] = '\0';
+    HBABuf->HBA_Firmware_Ver[0] = '\0';
+    HBABuf->HBA_Driver_Name[0] = '\0';
+    HBABuf->HBA_Driver_Ver[0] = '\0';
+    HBABuf->status = -100;
+    HBABuf->HBA_Cur_Personality = -100;
+    HBABuf->HBA_Drive_Groups_Cnt = -100;
+    HBABuf->bbuStatus.status = -100;
+    HBABuf->bbuStatus.voltage[0] = '\0';
+    HBABuf->bbuStatus.designCapacity[0] = '\0';
+    HBABuf->bbuStatus.fullCapacity[0] = '\0';
+    HBABuf->bbuStatus.remainCapacity[0] = '\0';
+
+    if ((perccli_ptr = popen(GET_DISK_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_HBA_Information_from_Perccli", "Perccli - HBA Card");
+        return -100;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        if (((targetPos = strstr(lineBuf, HBA_PRODUCTNAME)) != NULL) && (strlen(HBABuf->HBA_Name) == 0)) { // Extract HBA Card model name
+            sscanf(targetPos + strlen(HBA_PRODUCTNAME), "%[^\n]s", HBABuf->HBA_Name);
+
+        } else if ((targetPos = strstr(lineBuf, HBA_BIOS_VER)) != NULL) { // Extract HBA Card BIOS Version
+            sscanf(targetPos + strlen(HBA_BIOS_VER), "%[^\n]s", HBABuf->HBA_Bios_Ver);
+
+        } else if ((targetPos = strstr(lineBuf, HBA_SERIAL_NUMBER)) != NULL) { // Extract HBA Card serial number
+            sscanf(targetPos + strlen(HBA_SERIAL_NUMBER), "%[^\n]s", HBABuf->HBA_Serial_Num);
+
+        } else if ((targetPos = strstr(lineBuf, HBA_FIRMWARE_VER)) != NULL) { // Extract HBA Card firmware version
+            sscanf(targetPos + strlen(HBA_FIRMWARE_VER), "%[^\n]s", HBABuf->HBA_Firmware_Ver);
+
+        } else if ((targetPos = strstr(lineBuf, HBA_DRIVER_NAME)) != NULL){ // Extract HBA Card driver name
+            sscanf(targetPos + strlen(HBA_DRIVER_NAME), "%[^\n]s", HBABuf->HBA_Driver_Name);
+
+        } else if ((targetPos = strstr(lineBuf, HBA_DRIVER_VER)) != NULL) { // Extract HBA Card driver version
+            sscanf(targetPos + strlen(HBA_DRIVER_VER), "%[^\n]s", HBABuf->HBA_Driver_Ver);
+
+        } else if ((targetPos = strstr(lineBuf, HBA_CONTROLLER_STATUS)) != NULL) { // Extract HBA Card Status
+            sscanf(targetPos + strlen(HBA_CONTROLLER_STATUS), "%[^\n]s", lineBuf);
+            if (strcmp(lineBuf, HBA_CONTROLLER_STATUS_OPTIMAL) == 0) {
+                HBABuf->status = TYPE_STATUS_OPTIMAL;
+            } else if (strcmp(lineBuf, HBA_CONTROLLER_STATUS_DEGRADED) == 0) {
+                HBABuf->status = TYPE_STATUS_DEGRADED;
+            } else if (strcmp(lineBuf, HBA_CONTROLLER_STATUS_FAILED) == 0){
+                HBABuf->status = TYPE_STATUS_FAILED;
+            } else {
+                HBABuf->status = -100;
+            }
+
+        } else if ((targetPos = strstr(lineBuf, HBA_CURRENT_PERSONALITY)) != NULL) { // Extract current mode of HBA Card (RAID or HBA)
+            sscanf(targetPos + strlen(HBA_CURRENT_PERSONALITY), "%[^\n]s", lineBuf);
+            if (strncmp(lineBuf, HBA_CURRENT_PERSONALITY_HBA, strlen(HBA_CURRENT_PERSONALITY_HBA)) == 0) {
+                HBABuf->HBA_Cur_Personality = TYPE_HBA_CUR_HBA;
+            } else if (strncmp(lineBuf, HBA_CURRENT_PERSONALITY_RAID, strlen(HBA_CURRENT_PERSONALITY_RAID)) == 0) {
+                HBABuf->HBA_Cur_Personality = TYPE_HBA_CUR_RAID;
+            } else {
+                HBABuf->HBA_Cur_Personality = -100;
+            }
+
+        } else if ((targetPos = strstr(lineBuf, HBA_DRIVE_GROUPS)) != NULL) { // Extract the number of drive groups
+            sscanf(targetPos + strlen(HBA_DRIVE_GROUPS), "%hd", &(HBABuf->HBA_Drive_Groups_Cnt));
+        }
+    }
+
+    pclose(perccli_ptr);
+
+    get_BBU_Information_from_Perccli(&(HBABuf->bbuStatus));
+
+    return 0;
+}
+
+void get_BBU_Information_from_Perccli(BBUInfo* BBUBuf){ // Get BBU(Backup Battery Unit) information from Perccli command.
+    FILE* perccli_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE];
+    char* targetPos = NULL;
+
+    if ((perccli_ptr = popen(GET_BBU_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_BBU_Information_from_Perccli", "Perccli - BBU");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        if ((targetPos = strstr(lineBuf, BBU_STATUS)) != NULL) { // Extract BBU Status
+            targetPos += strlen(BBU_STATUS);
+            remove_Space_of_Head(targetPos);
+            sscanf(targetPos, "%[^\n]s", lineBuf);
+            if (strncmp(lineBuf, BBU_STATUS_OPTIMAL, strlen(BBU_STATUS_OPTIMAL)) == 0) {
+                BBUBuf->status = TYPE_STATUS_OPTIMAL;
+            } else if (strncmp(lineBuf, BBU_STATUS_DEGRADED, strlen(BBU_STATUS_DEGRADED)) == 0) {
+                BBUBuf->status = TYPE_STATUS_DEGRADED;
+            } else if (strncmp(lineBuf, BBU_STATUS_FAILED, strlen(BBU_STATUS_FAILED)) == 0) {
+                BBUBuf->status = TYPE_STATUS_FAILED;
+            }
+
+        } else if (((targetPos = strstr(lineBuf, BBU_VOLTAGE)) != NULL) && (strstr(lineBuf, BBU_VOLTAGE_UNIT) != NULL) && (strlen(BBUBuf->voltage) == 0)) { // Extract BBU Voltage
+            targetPos += strlen(BBU_VOLTAGE);
+            remove_Space_of_Head(targetPos); // Remove the space at the head of String.
+            sscanf(targetPos, "%[^\n]s", lineBuf);
+            remove_Space_of_Tail(lineBuf); // Remove the space at the tail of String.
+            strcpy(BBUBuf->voltage, lineBuf);
+
+        } else if (((targetPos = strstr(lineBuf, BBU_DESIGN_CAPACITY)) != NULL) && (strstr(lineBuf, BBU_CAPACITY_UNIT) != NULL)) { // Extract design capacity of BBU (mAh)
+            targetPos += strlen(BBU_DESIGN_CAPACITY);
+            remove_Space_of_Head(targetPos); // Remove the space at the head of String.
+            sscanf(targetPos, "%[^\n]s", lineBuf);
+            remove_Space_of_Tail(lineBuf); // Remove the space at the tail of String.
+            strcpy(BBUBuf->designCapacity, lineBuf);
+
+        } else if (((targetPos = strstr(lineBuf, BBU_FULL_CHARGE_CAPACITY)) != NULL) && (strstr(lineBuf, BBU_CAPACITY_UNIT) != NULL)) { // Extract full charged capacity of BBU (mAh)
+            targetPos += strlen(BBU_FULL_CHARGE_CAPACITY);
+            remove_Space_of_Head(targetPos); // Remove the space at the head of String.
+            sscanf(targetPos, "%[^\n]s", lineBuf);
+            remove_Space_of_Tail(lineBuf); // Remove the space at the tail of String.
+            strcpy(BBUBuf->fullCapacity, lineBuf);
+
+        } else if (((targetPos = strstr(lineBuf, BBU_REMAINING_CAPACITY)) != NULL) && (strstr(lineBuf, BBU_CAPACITY_UNIT) != NULL) && (strstr(lineBuf, "Alarm") == NULL)) { // Extract remaining capacity of BBU (mAh)
+            targetPos += strlen(BBU_REMAINING_CAPACITY);
+            remove_Space_of_Head(targetPos); // Remove the space at the head of String.
+            sscanf(targetPos, "%[^\n]s", lineBuf);
+            remove_Space_of_Tail(lineBuf); // Remove the space at the tail of String.
+            strcpy(BBUBuf->remainCapacity, lineBuf);
+        }
+    }
+    
+    pclose(perccli_ptr);
+}
+
+/* Functions that get CPU information from Jiffies (/proc/cpuinfo) */
+void get_CPU_Usage_Percent_of_each_Core(float** usage_buf_ptr){ // Get CPU usage percent of each Core from Jiffies.
+    // usage_buf_ptr -> Pointer of float Array. Array is made in this function.
+    unsigned long user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;
     static unsigned long* priv_total = NULL;
     static unsigned long* priv_idle = NULL;
     FILE *fp = NULL;

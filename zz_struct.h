@@ -21,7 +21,7 @@ typedef struct Unit_Mapping {
     char* str;
 } Unit_Mapping;
 
-/* Disk Information*/
+/* Disk Information */
 typedef struct PartitionInfo {
     char fileSystem[MAX_FILESYSTEM_LEN];
     char mountPath[MAX_MOUNTPATH_LEN];
@@ -29,6 +29,39 @@ typedef struct PartitionInfo {
     size_t spaceUse;
 } PartitionInfo;
 
+typedef struct DiskInfo {
+    short enclosureNum;
+    short slotNum;
+    short deviceID;
+    short driveGroup;
+    short status;
+    char modelName[MAX_DISK_MODELNAME_LEN];
+    char capacity[MAX_DISK_CAPACITY_LEN];
+    short capUnit;
+    short mediaType;
+    short interface;
+} DiskInfo;
+
+typedef struct BBUInfo {
+    short status;
+    char voltage[MAX_BBU_VOLTAGE_LEN];
+    char designCapacity[MAX_BBU_CAPACITY_LEN];
+    char fullCapacity[MAX_BBU_CAPACITY_LEN];
+    char remainCapacity[MAX_BBU_CAPACITY_LEN];
+} BBUInfo;
+
+typedef struct HBAInfo {
+    char HBA_Name[MAX_HBA_NAME_LEN];
+    char HBA_Bios_Ver[MAX_HBA_BIOS_VER_LEN];
+    char HBA_Serial_Num[MAX_HBA_SERIAL_LEN];
+    char HBA_Firmware_Ver[MAX_HBA_FIRMWARE_VER_LEN];
+    char HBA_Driver_Name[MAX_HBA_DRIVER_NAME_LEN];
+    char HBA_Driver_Ver[MAX_HBA_DRIVER_VER_LEN];
+    short status;
+    short HBA_Cur_Personality;
+    short HBA_Drive_Groups_Cnt; 
+    BBUInfo bbuStatus;
+} HBAInfo;
 
 /* Temp, Usage Information */
 typedef struct TempInfo { // Celcius

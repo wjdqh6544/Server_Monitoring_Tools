@@ -61,39 +61,42 @@ void signal_handler(int sig){
 }
 
 void check_before_running(char* username){
-    FILE* command = NULL;
-    char buf[ERROR_MSG_LEN] = { '\0' };
+    int code = 0;
 
     if (geteuid() != 0) { // Check the program is run with root privileges.
         printf("\nThis program must be running with root privileges. (using sudo or as root)...\n\nexit.\n\n");
         exit(-1);
     }
 
-    if ((command = popen(CHECK_OMREPORT, "r")) == NULL) {
-        printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
-    } else {
-        fgets(buf, sizeof(buf), command);
-        if (strstr(buf, "No such file or directory") != NULL){
+    code = check_Package_Installed("omreport"); // Check whether "omreport" package is installed.
+    switch (code) {
+        case -1:
+            printf("\nCheck_Package_Installed - Invalid Parameter.\n\n");
+            exit(-1);
+        case -100:
+            printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
+            exit(-1);
+        case 0:
             printf("\n- OMSA (OpenManage Server Administrator) is not installed..");
             printf("\n- Please install OMSA. (Package Name: OM-SrvAdmin-Dell-Web-LX)");
             printf("\n- To download rpm package, please visit DELL Website.\n\nexit.\n\n");
             exit(-1);
-        }
-        pclose(command);
     }
 
-    if ((command = popen(CHECK_PERCCLI, "r")) == NULL) {
-        printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
-    } else {
-        fgets(buf, sizeof(buf), command);
-        if (strstr(buf, "No such file or directory") != NULL){
+    code = check_Package_Installed("perccli"); // Check whether "perccli" package is installed.
+    switch (code) {
+        case -1:
+            printf("\nCheck_Package_Installed - Invalid Parameter.\n\n");
+            exit(-1);
+        case -100:
+            printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
+            exit(-1);
+        case 0:
             printf("\n- PERCCLI(PERC controller CLI utility) is not installed..");
             printf("\n- Please install Perccli. (Package Name: Perccli)");
             printf("\n- To download rpm package, please visit DELL Website.");
             printf("\n- This program uses perccli64. If the system is 32bit, Edit define macro. (Is in 0_usrDefine.h)\n\nexit.\n\n");
             exit(-1);
-        }
-        pclose(command);
     }
 
     if (check_Log_Directory(HISTORY_PATH, 0750) == -1){ // Check the presense of "/var/log/00_Server_Monitoring/00_history" directory. (History file is saved to this.)

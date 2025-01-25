@@ -24,6 +24,30 @@ void get_Date(){
     dateBuf.sec = (short)(tm->tm_sec);
 }
 
+int check_Package_Installed(char* type) {
+    FILE* command = NULL;
+    char buf[BUF_MAX_LINE] = { '\0' };
+
+    if (strcmp(type, "omreport") == 0) {
+        strcpy(buf, CHECK_OMREPORT);
+    } else if (strcmp(type, "perccli") == 0) {
+        strcpy(buf, CHECK_PERCCLI);
+    } else {
+        return -1;
+    }
+
+    if ((command = popen(buf, "r")) == NULL) {
+        return -100;
+    } else {
+        fgets(buf, sizeof(buf), command);
+        if (strstr(buf, "No such file or directory") != NULL){
+            return 0;
+        }
+        pclose(command);
+    }
+    return 1;
+}
+
 void exception(short code, char *func_name, char *detail){
     char type[ERROR_MSG_LEN];
     char *detail_str = (detail != NULL) ? detail : "";
@@ -111,4 +135,27 @@ double convert_Size_Unit(size_t size, int autoUnit, UNIT* unit){ // Convert to t
         }
     }
     return res;
+}
+
+void remove_Space_of_Head(char* ptr) { // Remove the space at the head of String.
+    char* start = ptr;
+    while (*start == ' ') {
+        start++;
+    }
+
+    while (*start != '\0') {
+        *ptr++ = *start++;
+    }
+    *ptr = '\0';
+    return;
+}
+
+void remove_Space_of_Tail(char* ptr){ // Remove the space at the tail of String.
+    int idx = strlen(ptr) - 1;
+
+    while (idx >= 0 && ptr[idx] == ' ') {
+        ptr[idx] = '\0';
+        idx--;
+    }
+    return;
 }

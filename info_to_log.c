@@ -106,7 +106,7 @@ void get_Temperature_from_System(TempInfo* tempBuf){  // Get temperature informa
 
 void get_Temperature_Omreport(TempInfo* tempBuf){ // Get temperature information from omreport
     FILE* omreport_ptr = NULL;
-    char lineBuf[TEMP_MAX_LINE] = { '\0' };
+    char lineBuf[BUF_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
 
     if ((omreport_ptr = popen(GET_TEMP_OMREPORT_COMMAND, "r")) == NULL) { // Get raw data from omreport
@@ -139,7 +139,7 @@ void get_Temperature_Omreport(TempInfo* tempBuf){ // Get temperature information
 
 void get_Temperature_Perccli(TempInfo* tempBuf){ // Get temperature information from perccli
     FILE* perccli_ptr = NULL;
-    char lineBuf[TEMP_MAX_LINE] = { '\0' };
+    char lineBuf[BUF_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
 
     if ((perccli_ptr = popen(GET_RAID_TEMP_PERCCLI_COMMAND, "r")) == NULL){ // Get raw data of a RAID Card from perccli
@@ -169,7 +169,7 @@ void get_Temperature_Perccli(TempInfo* tempBuf){ // Get temperature information 
 
     pclose(perccli_ptr);
 
-    if ((perccli_ptr = popen(GET_BBU_TEMP_COMMAND, "r")) == NULL){ // Get raw data of a BBU (Battery Backup Unit)
+    if ((perccli_ptr = popen(GET_BBU_INFO_COMMAND, "r")) == NULL){ // Get raw data of a BBU (Battery Backup Unit)
         exception(-2, "get_Temperature_Perccli", "Perccli - BBU");
         return;
     }

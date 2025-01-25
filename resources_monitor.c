@@ -1,5 +1,8 @@
+#include "0_usrDefine.h"
 #include "common.h"
-#include "info_to_log.h"
+#include "hw_info.h"
+#include "info_from_log.h"
+#include "os_info.h"
 #include "zz_struct.h"
 #include <fcntl.h>
 #include <stdio.h>
@@ -7,28 +10,25 @@
 #include <unistd.h>
 
 DateInfo dateBuf;
+const Unit_Mapping unitMap[] = {
+    { KB, "KB" },
+    { MB, "MB" },
+    { GB, "GB" },
+    { TB, "TB" },
+    { PB, "PB" },
+    { EB, "EB" }
+};
 
 int main(void){
-    char buf[1000];
-    int fd1, fd2;
-    TempLog tempBuf;
-    UsageLog usageBuf;
+    DiskInfo* diskBuf = NULL;
+    int diskCount; 
     get_Date();
-    strcpy(buf, HISTORY_PATH);
-    get_Filename(buf, HISTORY_PATH, TEMP_LOG, &dateBuf);
-    fd1 = open(buf, O_RDONLY);
-    strcpy(buf, HISTORY_PATH);
-    get_Filename(buf, HISTORY_PATH, USAGE_LOG, &dateBuf);
-    fd2 = open(buf, O_RDONLY);
-
-    while(1){
-        lseek(fd1, -sizeof(TempLog), SEEK_END);
-        lseek(fd2, -sizeof(UsageLog), SEEK_END);
-        read(fd1, &tempBuf, sizeof(tempBuf));
-        read(fd2, &usageBuf, sizeof(usageBuf));
-        printf("%2d %2d %.2f %.2f %.2f %.2f %f %ld %ld %ld %ld\n\n", tempBuf.date.day, usageBuf.date.day, tempBuf.temp.inlet, tempBuf.temp.exhaust, tempBuf.temp.cpu[0], tempBuf.temp.cpu[1], usageBuf.cpu.usage, 
-        usageBuf.mem.memTotal, usageBuf.mem.memUse, usageBuf.mem.swapTotal, usageBuf.mem.swapUse);
-        sleep(1);
+    // get_HBA_Information_from_Perccli(&HBABuf);
+    // printf("Status: %hd | Voltage: %s | design: %s | ", HBABuf.bbuStatus.status, HBABuf.bbuStatus.voltage, HBABuf.bbuStatus.designCapacity);
+    // printf("remain: %s | full: %s", HBABuf.bbuStatus.remainCapacity, HBABuf.bbuStatus.fullCapacity);
+    get_Disk_Information_from_Perccli(&diskBuf, &diskCount);
+    for (int i = 0; i < diskCount; i++){
+        printf("%hd %hd %hd %hd %hd %s %s %hd %hd %hd\n", diskBuf[i].enclosureNum,   diskBuf[i].slotNum, diskBuf[i].deviceID, diskBuf[i].driveGroup, 
+        diskBuf[i].status, diskBuf[i].modelName, diskBuf[i].capacity, diskBuf[i].capUnit, diskBuf[i].mediaType, diskBuf[i].interface);
     }
-    
 }
