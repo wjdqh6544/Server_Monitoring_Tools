@@ -1,6 +1,6 @@
-#include "0_usrDefine.h"
 #include "common.h"
 #include "hw_info.h"
+#include "os_info.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,10 +9,10 @@
 extern Unit_Mapping unitMap[];
 
 /* Functions that get disk information from perccli */
-int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
-    // usage_buf_ptr -> Pointer of float Array. Array is made in this function.
+int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt) {
+    // vdBuf -> Pointer of float Array. Array is made in this function.
     FILE* perccli_ptr = NULL;
-    char lineBuf[BUF_MAX_LINE] = { '\0' }, capUnitBuf[BUF_MAX_LINE], statusBuf[BUF_MAX_LINE], driveGroupBuf[BUF_MAX_LINE], mediaTypeBuf[BUF_MAX_LINE], interfaceBuf[BUF_MAX_LINE];
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, statusBuf[BUF_MAX_LINE], accessBuf[BUF_MAX_LINE], capUnitBuf[BUF_MAX_LINE];
     char* targetPos = NULL;
 
     if ((perccli_ptr = popen(GET_DISK_INFO_COMMAND, "r")) == NULL) {
@@ -21,7 +21,129 @@ int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
     }
 
     while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
-        if ((targetPos = strstr(lineBuf, DISK_PHYSICAL_COUNT)) != NULL) { // Extract the number of disk
+        if ((targetPos = strstr(lineBuf, VD_CNT)) != NULL) { // Extract the number of virtual disk
+            sscanf(targetPos += strlen(VD_CNT), "%d", virtualDriveCnt);
+            break;
+        }
+    }
+
+    pclose(perccli_ptr);
+
+    *vdBuf = (VDInfo*)malloc((*virtualDriveCnt) * sizeof(VDInfo));
+    for (int i = 0; i < *virtualDriveCnt; i++) { // Initialization
+        (*vdBuf)[i].driveGroup = -100;
+        (*vdBuf)[i].virtualDrive = -100;
+        (*vdBuf)[i].type[0] = '\0';
+        (*vdBuf)[i].status = -100;
+        (*vdBuf)[i].access = -100;
+        (*vdBuf)[i].capacity[0] = '\0';
+        (*vdBuf)[i].vdName[0] = '\0';
+        (*vdBuf)[i].fileSystem[0] = '\0';
+        (*vdBuf)[i].mountPathCnt = -100;
+        (*vdBuf)[i].mountPath = NULL;
+    }
+
+    if ((perccli_ptr = popen(GET_VDISK_LIST, "r")) == NULL) {
+        exception(-2, "get_VDisk_OSDrive_Filesystem_from_Perccli", "Perccli - VDisk");
+        return -100;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        if ((targetPos = strstr(lineBuf, VD_LIST)) != NULL) { // Extract the number of virtual disk
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // =========
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // \n
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // ----------------------------------------------------------------
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // DG/VD TYPE  State Access Consist Cache Cac sCC       Size Name
+            fgets(lineBuf, sizeof(lineBuf), perccli_ptr); // ----------------------------------------------------------------
+            for (int i = 0; i < *virtualDriveCnt; i++) {
+                fgets(lineBuf, sizeof(lineBuf), perccli_ptr);
+                sscanf(lineBuf, VD_LIST_FORM, &((*vdBuf)[i].driveGroup), &((*vdBuf)[i].virtualDrive), (*vdBuf)[i].type, statusBuf, accessBuf, 
+                (*vdBuf)[i].capacity, capUnitBuf, (*vdBuf)[i].vdName);
+
+                strcat((*vdBuf)[i].capacity, " "); // Union capacity and its Unit.
+                strcat((*vdBuf)[i].capacity, capUnitBuf);
+
+                if (strcmp(statusBuf, VD_STATE_OPTIMAL) == 0) { // Convert Status String to numeric code.
+                    (*vdBuf)[i].status = TYPE_VD_STATE_OPTIMAL;
+                } else if (strcmp(statusBuf, VD_STATE_DEGRADED) == 0) {
+                    (*vdBuf)[i].status = TYPE_VD_STATE_DEGRADED;
+                } else if (strcmp(statusBuf, VD_STATE_OFFLINE) == 0) {
+                    (*vdBuf)[i].status = TYPE_VD_STATE_OFFLINE;
+                } else if (strcmp(statusBuf, VD_STATE_RECOVERY) == 0) {
+                    (*vdBuf)[i].status = TYPE_VD_STATE_RECOVERY;
+                } else if (strcmp(statusBuf, VD_STATE_PARTIALLY_DEGRADED) == 0) {
+                    (*vdBuf)[i].status = TYPE_VD_STATE_PARTIALLY_DEGRADED;
+                } else if (strcmp(statusBuf, VD_STATE_HIDDEN) == 0) {
+                    (*vdBuf)[i].status = TYPE_VD_STATE_HIDDEN;
+                } else if (strcmp(statusBuf, VD_STATE_TRANSPORTREADY) == 0) {
+                    (*vdBuf)[i].status = TYPE_VD_STATE_TRANSPORTREADY;
+                } else {
+                    (*vdBuf)[i].status = -100;
+                }
+
+                if (strcmp(accessBuf, VD_ACCESS_READ_ONLY) == 0) { // Convert Access String to numeric code.
+                    (*vdBuf)[i].access = TYPE_VD_ACCESS_READ_ONLY;
+                } else if (strcmp(accessBuf, VD_ACCESS_READ_WRITE) == 0) {
+                    (*vdBuf)[i].access = TYPE_VD_ACCESS_READ_WRITE;
+                } else if (strcmp(accessBuf, VD_ACCESS_BLOCKED) == 0) {
+                    (*vdBuf)[i].access = TYPE_VD_ACCESS_BLOCKED;
+                } else {
+                    (*vdBuf)[i].access = -100;
+                }
+            }
+        }
+    }
+
+    pclose(perccli_ptr);
+
+    get_VDisk_FileSystem_from_Perccli(*vdBuf, *virtualDriveCnt);
+    for (int i = 0 ; i < *virtualDriveCnt; i++){
+        get_MountPath_from_FileSystem((*vdBuf)[i].fileSystem, &((*vdBuf)[i].mountPath), &((*vdBuf)[i].mountPathCnt));
+    }
+
+    return 0;
+}
+
+void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt) {
+    FILE* perccli_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, vdProperties[BUF_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+
+    if ((perccli_ptr = popen(GET_VDISK_FILESYSTEM, "r")) == NULL) {
+        exception(-2, "get_VDisk_FileSystem_from_Perccli", "Perccli - VDisk");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        for (int i = 0; i < virtualDiskCnt; i++) {
+            sprintf(vdProperties, VD_PROPERTIES_FORM, i);
+            if ((targetPos = strstr(lineBuf, vdProperties)) != NULL) {
+                while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+                    if ((targetPos = strstr(lineBuf, VD_FILESYSTEM_FORM)) != NULL) {
+                        sscanf(targetPos + strlen(VD_FILESYSTEM_FORM), "%s", vdBuf[i].fileSystem);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    pclose(perccli_ptr);
+}
+
+int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
+    // diskBuf -> Pointer of float Array. Array is made in this function.
+    FILE* perccli_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, capUnitBuf[BUF_MAX_LINE], statusBuf[BUF_MAX_LINE], driveGroupBuf[BUF_MAX_LINE];
+    char* targetPos = NULL;
+
+    if ((perccli_ptr = popen(GET_DISK_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_Disk_Information_from_Perccli", "Perccli - Disk");
+        return -100;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
+        if ((targetPos = strstr(lineBuf, DISK_PHYSICAL_COUNT)) != NULL) { // Extract the number of physical disk
             sscanf(targetPos += strlen(DISK_PHYSICAL_COUNT), "%d", diskCount);
             break;
         }
@@ -37,9 +159,9 @@ int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
         (*diskBuf)[i].status = -100;
         (*diskBuf)[i].modelName[0] = '\0';
         (*diskBuf)[i].capacity[0] = '\0';
-        (*diskBuf)[i].capUnit = -100;
-        (*diskBuf)[i].mediaType = -100;
-        (*diskBuf)[i].interface = -100;
+        (*diskBuf)[i].mediaType[0] = '\0';
+        (*diskBuf)[i].interface[0] = '\0';
+        (*diskBuf)[i].mappedPartition[0] = '\0';
     }
 
     while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) { // Extract disk information
@@ -52,7 +174,7 @@ int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
             for (int i = 0; i < *diskCount; i++){ // Extract disk information (Content)
                 fgets(lineBuf, sizeof(lineBuf), perccli_ptr);
                 sscanf(lineBuf, "%hd:%hd %hd %s %s %s %s %s %s", &((*diskBuf)[i].enclosureNum), &((*diskBuf)[i].slotNum), &((*diskBuf)[i].deviceID), statusBuf, driveGroupBuf, 
-                (*diskBuf)[i].capacity, capUnitBuf, interfaceBuf, mediaTypeBuf);
+                (*diskBuf)[i].capacity, capUnitBuf, (*diskBuf)[i].interface, (*diskBuf)[i].mediaType);
 
                 if (strcmp(statusBuf, DISK_STATE_ONLINE) == 0) { // Convert "state" String to numeric code.
                     (*diskBuf)[i].status = TYPE_DISK_STATE_ONLINE;
@@ -72,32 +194,11 @@ int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
                     (*diskBuf)[i].status = -100;
                 }
 
+                strcat((*diskBuf)[i].capacity, " "); // Union capacity and its Unit.
+                strcat((*diskBuf)[i].capacity, capUnitBuf); // Union capacity and its Unit.
+
                 (*diskBuf)[i].driveGroup = ((strcmp(driveGroupBuf, "-") == 0) ? -100 : atoi(driveGroupBuf)); // Convert "driveGroup" String to numeric code.
 
-                for (int j = 0 ; j < UNIT_COUNT; j++) { // Convert "Capacity Unit" String to numeric code.
-                    if (strcmp(capUnitBuf, unitMap[j].str) == 0) {
-                        (*diskBuf)[i].capUnit = (short)j;
-                        break;
-                    }
-                }
-
-                if (strcmp(interfaceBuf, DISK_INTERFACE_SATA) == 0) { // Convert "interface" String to numeric code.
-                    (*diskBuf)[i].interface = TYPE_DISK_INTERFACE_SATA;
-                } else if (strcmp(interfaceBuf, DISK_INTERFACE_SAS) == 0) {
-                    (*diskBuf)[i].interface = TYPE_DISK_INTERFACE_SAS;
-                } else {
-                    (*diskBuf)[i].interface = -100;
-                }
-
-                if (strcmp(mediaTypeBuf, DISK_MEDIATYPE_SSD) == 0) { // Convert "mediaType" String to numeric code. 
-                    (*diskBuf)[i].mediaType = TYPE_DISK_MEDIATYPE_SSD;
-                } else if (strcmp(mediaTypeBuf, DISK_MEDIATYPE_HDD) == 0) {
-                    (*diskBuf)[i].mediaType = TYPE_DISK_MEDIATYPE_HDD;
-                } else if (strcmp(mediaTypeBuf, DISK_MEDIATYPE_SSHD) == 0) {
-                    (*diskBuf)[i].mediaType = TYPE_DISK_MEDIATYPE_SSHD;
-                } else {
-                    (*diskBuf)[i].mediaType = -100;
-                }
             }
         }
     }

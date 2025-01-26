@@ -29,6 +29,19 @@ typedef struct PartitionInfo {
     size_t spaceUse;
 } PartitionInfo;
 
+typedef struct VDInfo {
+    short driveGroup;
+    short virtualDrive;
+    char type[MAX_VDISK_TYPE_LEN];
+    short status;
+    short access;
+    char capacity[MAX_DISK_CAPACITY_LEN];
+    char vdName[MAX_VDISK_NAME_LEN];
+    char fileSystem[MAX_FILESYSTEM_LEN];
+    short mountPathCnt;
+    char** mountPath;
+} VDInfo;
+
 typedef struct DiskInfo {
     short enclosureNum;
     short slotNum;
@@ -37,9 +50,9 @@ typedef struct DiskInfo {
     short status;
     char modelName[MAX_DISK_MODELNAME_LEN];
     char capacity[MAX_DISK_CAPACITY_LEN];
-    short capUnit;
-    short mediaType;
-    short interface;
+    char mediaType[MAX_DISK_MEDIATYPE_LEN];
+    char interface[MAX_DISK_INTERFACE_LEN];
+    char mappedPartition[MAX_MOUNTPATH_LEN];
 } DiskInfo;
 
 typedef struct BBUInfo {

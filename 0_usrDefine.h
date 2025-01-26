@@ -25,10 +25,14 @@
 #define GET_DISK_COUNT "/opt/MegaRAID/perccli/perccli"
 #define GET_DISK_INFO_COMMAND "/opt/MegaRAID/perccli/perccli64 /call show all"
 #define GET_DISK_NAME "/opt/MegaRAID/perccli/perccli64 /call/eall/sall show all"
+#define GET_VDISK_LIST "/opt/MegaRAID/perccli/perccli64 /call/vall show"
+#define GET_VDISK_FILESYSTEM "/opt/MegaRAID/perccli/perccli64 /call/vall show all"
 #define MAX_BBU_VOLTAGE_LEN 10
 #define MAX_BBU_CAPACITY_LEN 10
-#define MAX_DISK_CAPACITY_LEN 11
+#define MAX_DISK_CAPACITY_LEN 12
 #define MAX_DISK_MODELNAME_LEN 32
+#define MAX_DISK_INTERFACE_LEN 5
+#define MAX_DISK_MEDIATYPE_LEN 5
 #define MAX_HBA_BIOS_VER_LEN 32
 #define MAX_HBA_DRIVER_NAME_LEN 16
 #define MAX_HBA_DRIVER_VER_LEN 32
@@ -36,6 +40,8 @@
 #define MAX_HBA_NAME_LEN 64
 #define MAX_HBA_SERIAL_LEN 16
 #define MAX_PHYSICAL_CPU_PATH_LEN 40
+#define MAX_VDISK_NAME_LEN 32
+#define MAX_VDISK_TYPE_LEN 7
 #define PHYSICAL_CPU_PATH "/sys/devices/system/cpu"
 #define PHYSICAL_CPU_PATH_FORM "/sys/devices/system/cpu/cpu%d/topology"
 // DiskInfo.state Field
@@ -46,13 +52,6 @@
 #define TYPE_DISK_STATE_UGOOD 4 // Unconfigured Good
 #define TYPE_DISK_STATE_UBAD 5 // Unconfigured Bad
 #define TYPE_DISK_STATE_SANI 6 // Sanitize
-// DiskInfo.mediaType
-#define TYPE_DISK_MEDIATYPE_HDD 0
-#define TYPE_DISK_MEDIATYPE_SSD 1
-#define TYPE_DISK_MEDIATYPE_SSHD 2
-// DiskInfo.interface
-#define TYPE_DISK_INTERFACE_SATA 0
-#define TYPE_DISK_INTERFACE_SAS 1
 // BBUInfo.state
 #define TYPE_STATUS_OPTIMAL 0
 #define TYPE_STATUS_FAILED 1
@@ -88,16 +87,12 @@
 #define HBA_CONTROLLER_STATUS_OPTIMAL "Optimal"
 #define HBA_CONTROLLER_STATUS_DEGRADED "Degraded"
 #define HBA_CONTROLLER_STATUS_FAILED "Failed"
-// For finding String in Disk
+// For finding String in Physical Disk
 #define DISK_NAME "Model Number = "
 #define DISK_NAME_FILTER "Drive /"
 #define DISK_NAME_FORM "Drive /c0/e%hd/s%hd Device attributes :"
-#define DISK_INTERFACE_SAS "SAS"
-#define DISK_INTERFACE_SATA "SATA"
-#define DISK_MEDIATYPE_SSD "SSD"
-#define DISK_MEDIATYPE_SSHD "SSHD"
-#define DISK_MEDIATYPE_HDD "HDD"
 #define DISK_PD_LIST "PD LIST :"
+#define DISK_PD_LIST_FORM "%hd:%hd %hd %s %s %s %s %s %s"
 #define DISK_PHYSICAL_COUNT "Physical Drives = "
 #define DISK_STATE_ONLINE "Onln"
 #define DISK_STATE_OFFLINE "Offln"
@@ -106,9 +101,35 @@
 #define DISK_STATE_UGOOD "UGood" // Unconfigured Good
 #define DISK_STATE_UBAD "UBad" // Unconfigured Bad
 #define DISK_STATE_SANI "Sntze" // Sanitize
-
+//For finding String in Virtual Disk
+#define VD_FILESYSTEM_FORM "OS Drive Name = "
+#define VD_CNT "Virtual Drives = "
+#define VD_LIST "Virtual Drives :"
+#define VD_LIST_FORM "%hd/%hd %s %s %s %*s %*s %*s %*s %s %s %s"
+#define VD_PROPERTIES_FORM "VD%d Properties :"
+#define VD_STATE_OPTIMAL "Optl"
+#define VD_STATE_DEGRADED "Dgrd"
+#define VD_STATE_OFFLINE "OfLn"
+#define VD_STATE_RECOVERY "Rec"
+#define VD_STATE_PARTIALLY_DEGRADED "Pdgd"
+#define VD_STATE_HIDDEN "HD"
+#define VD_STATE_TRANSPORTREADY "TRANS"
+#define VD_ACCESS_READ_ONLY "RO"
+#define VD_ACCESS_READ_WRITE "RW"
+#define VD_ACCESS_BLOCKED "B"
+#define TYPE_VD_STATE_OPTIMAL 0
+#define TYPE_VD_STATE_DEGRADED 1
+#define TYPE_VD_STATE_OFFLINE 2
+#define TYPE_VD_STATE_RECOVERY 3
+#define TYPE_VD_STATE_PARTIALLY_DEGRADED 4
+#define TYPE_VD_STATE_HIDDEN 5
+#define TYPE_VD_STATE_TRANSPORTREADY 6
+#define TYPE_VD_ACCESS_READ_ONLY 0
+#define TYPE_VD_ACCESS_READ_WRITE 1
+#define TYPE_VD_ACCESS_BLOCKED 2
 
 /* os_info.c */
+#define GET_MOUNTPATH_LSBLK "lsblk -a"
 #define MAX_FILESYSTEM_LEN 4096
 #define MAX_MOUNTPATH_LEN 4096
 #define MOUNTS_FORM "%s %s %*s %*s %*s %*s"

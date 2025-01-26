@@ -3,6 +3,8 @@
 #define HW_INFO_H
 #include "zz_struct.h"
 
+int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt);
+void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt);
 int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount);
 void get_Disk_Product_Name_from_Perccli(DiskInfo* diskBuf, int diskCount);
 int get_HBA_Information_from_Perccli(HBAInfo* HBABuf);

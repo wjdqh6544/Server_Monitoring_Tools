@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 
 #define COMMON_H
+#include "0_usrDefine.h"
 #include "zz_struct.h"
 #include <sys/types.h>
 

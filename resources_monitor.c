@@ -20,15 +20,15 @@ const Unit_Mapping unitMap[] = {
 };
 
 int main(void){
-    DiskInfo* diskBuf = NULL;
-    int diskCount; 
+    VDInfo* vdBuf;
+    int vdCnt; 
     get_Date();
-    // get_HBA_Information_from_Perccli(&HBABuf);
-    // printf("Status: %hd | Voltage: %s | design: %s | ", HBABuf.bbuStatus.status, HBABuf.bbuStatus.voltage, HBABuf.bbuStatus.designCapacity);
-    // printf("remain: %s | full: %s", HBABuf.bbuStatus.remainCapacity, HBABuf.bbuStatus.fullCapacity);
-    get_Disk_Information_from_Perccli(&diskBuf, &diskCount);
-    for (int i = 0; i < diskCount; i++){
-        printf("%hd %hd %hd %hd %hd %s %s %hd %hd %hd\n", diskBuf[i].enclosureNum,   diskBuf[i].slotNum, diskBuf[i].deviceID, diskBuf[i].driveGroup, 
-        diskBuf[i].status, diskBuf[i].modelName, diskBuf[i].capacity, diskBuf[i].capUnit, diskBuf[i].mediaType, diskBuf[i].interface);
+    get_VDisk_Information_from_Perccli(&vdBuf, &vdCnt);
+    for (int i = 0; i < vdCnt; i++) {
+        printf("%hd %hd %s %hd %hd %s %s %s %hd\n", (vdBuf + i)->driveGroup, (vdBuf + i)->virtualDrive, (vdBuf + i)->type, (vdBuf + i)->status, (vdBuf + i)->access, (vdBuf + i)->capacity, 
+        (vdBuf + i)->vdName, (vdBuf + i)->fileSystem, (vdBuf + i)->mountPathCnt);
+        for (int j = 0; j < (vdBuf + i)->mountPathCnt; j++){
+            printf("%s\n", (vdBuf + i)->mountPath[j]);
+        }
     }
 }

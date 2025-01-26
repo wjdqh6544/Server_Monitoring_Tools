@@ -1,10 +1,72 @@
-#include "0_usrDefine.h"
 #include "common.h"
 #include "os_info.h"
-#include "zz_struct.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/statvfs.h>
+
+void get_MountPath_from_FileSystem(const char* fileSystem, char*** mountPath, short* mountPathCnt) { // Get the mount path using fileSystem path of Disk.
+    FILE* lsblk_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, originPath[5] = { '\0' }, mountBuf[MAX_MOUNTPATH_LEN] = { '\0' };
+    int mountIdx = 0;
+    // char* targetPos = NULL;
+
+    for (int i = 5; fileSystem[i] != '\0'; i++) {
+        originPath[i - 5] = fileSystem[i];
+        originPath[i - 4] = '\0';
+    }
+
+    if ((lsblk_ptr = popen(GET_MOUNTPATH_LSBLK, "r")) == NULL) {
+        exception(-2, "get_MountPath_from_FileSystem", "lsblk - mountPathCnt");
+        return;
+    }
+
+    *mountPathCnt = 0;
+
+    while (fgets(lineBuf, sizeof(lineBuf), lsblk_ptr) != NULL) { // Get the number of child filesystem. (= partition)
+        if (strstr(lineBuf, originPath) != NULL){
+            do {
+                fgets(lineBuf, sizeof(lineBuf), lsblk_ptr);
+                (*mountPathCnt)++;
+            } while (isalpha(lineBuf[0]) == 0);
+            (*mountPathCnt)--;
+            break;
+        }
+    }
+
+    pclose(lsblk_ptr);
+    
+    if (*mountPath != NULL) {
+        free(*mountPath);
+        *mountPath = NULL;
+    }
+
+    *mountPath = (char**)malloc((*mountPathCnt) * sizeof(char*)); // Allocate 2D-Array for mountPath
+
+    if ((lsblk_ptr = popen(GET_MOUNTPATH_LSBLK, "r")) == NULL) {
+        exception(-2, "get_MountPath_from_FileSystem", "lsblk - mountPath");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), lsblk_ptr) != NULL) {
+        if (strstr(lineBuf, originPath) != NULL) {
+            while (fgets(lineBuf, sizeof(lineBuf), lsblk_ptr) != NULL) {
+                if (isalpha(lineBuf[0]) == 0) {
+                    sscanf(lineBuf, "%*s %*s %*s %*s %*s %*s %s", mountBuf);
+                    (*mountPath)[mountIdx] = (char*)malloc(strlen(mountBuf) * sizeof(char));
+                    strcpy((*mountPath)[mountIdx++], mountBuf);
+                }
+                
+                if (mountIdx == (*mountPathCnt)) {
+                    break;
+                }
+            }    
+        }
+
+    }
+    
+    return;
+}
 
 int get_Partition_Information(PartitionInfo** partition_list_ptr, short* partition_cnt){ // Get the partition list and capacity of each partitions.
     // partition_list_ptr: Must be 'not' allocated to memory. (At this function, partition list is allocated to memory.)
