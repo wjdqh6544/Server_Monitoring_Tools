@@ -3,6 +3,15 @@
 #define HW_INFO_H
 #include "zz_struct.h"
 
+void get_System_Information_from_Omreport(SystemInfo* systemBuf);
+void get_Server_Information_from_Omreport(char* hostname, char* serverModel, char* serviceTag, char* serviceCode);
+void get_CPU_Information_from_Omreport(CPUInfo* cpuBuf);
+void get_Memory_Information_from_Omreport(MEMInfo* memoryBuf);
+void get_CMOS_Battery_Status_from_Omreport(CMOS_BAT_INFO* cmosBatteryBuf);
+void get_Fan_Status_from_Omreport(FANInfo* fanBuf);
+void get_IFA_Information_from_Omreport(short* ifaCount, IFAInfo** ifaBuf);
+void get_Interface_Speed_from_Omreport(short ifaCount, IFAInfo* ifaBuf);
+void get_PSU_Status_from_Omreport(short* psuStatusBuf);
 int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt);
 void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt);
 int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount);

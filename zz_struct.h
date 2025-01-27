@@ -21,6 +21,61 @@ typedef struct Unit_Mapping {
     char* str;
 } Unit_Mapping;
 
+/* Parts Information */
+typedef struct CPUInfo {
+    char name[MAX_PARTS_NAME_LEN];
+    short status;
+    short coreCnt;
+} CPUInfo;
+
+typedef struct MEM_UNIT_INFO {
+    short status;
+    char connectorName[4];
+    char type[MAX_PARTS_NAME_LEN];
+    char capacity[MAX_CAPACITY_LEN];
+} MEM_UNIT_INFO;
+
+typedef struct MEMInfo {
+    short slotsTotal;
+    short slotsUsed;
+    char installedCapacity[MAX_CAPACITY_LEN];
+    char errorCorrection[MAX_PARTS_NAME_LEN];
+    MEM_UNIT_INFO* unit;
+} MEMInfo;
+
+typedef struct CMOS_BAT_INFO {
+    char name[MAX_PARTS_NAME_LEN];
+    short status;
+} CMOS_BAT_INFO;
+
+
+typedef struct FANInfo {
+    short status;
+    char rpm[MAX_CAPACITY_LEN];
+    char name[MAX_PARTS_NAME_LEN];
+} FANInfo;
+
+typedef struct IFAInfo {
+    char name[MAX_PARTS_NAME_LEN];
+    char ifName[MAX_PARTS_NAME_LEN];
+    short connected;
+    char speed[MAX_CAPACITY_LEN];
+} IFAInfo;
+
+typedef struct SystemInfo {
+    char hostname[MAX_PARTS_NAME_LEN];
+    char serverModel[MAX_PARTS_NAME_LEN];
+    char serviceTag[MAX_PARTS_NAME_LEN];
+    char serviceCode[MAX_PARTS_NAME_LEN];
+    CPUInfo cpu[MAX_CPU_COUNT];
+    MEMInfo mem;
+    CMOS_BAT_INFO cmosBattery;
+    FANInfo fan[MAX_FAN_COUNT];
+    short ifaCount;
+    IFAInfo* ifa;
+    short psuStatus[MAX_PSU_COUNT];
+} SystemInfo;
+
 /* Disk Information */
 typedef struct PartitionInfo {
     char fileSystem[MAX_FILESYSTEM_LEN];
@@ -35,7 +90,7 @@ typedef struct VDInfo {
     char type[MAX_VDISK_TYPE_LEN];
     short status;
     short access;
-    char capacity[MAX_DISK_CAPACITY_LEN];
+    char capacity[MAX_CAPACITY_LEN];
     char vdName[MAX_VDISK_NAME_LEN];
     char fileSystem[MAX_FILESYSTEM_LEN];
     short mountPathCnt;
@@ -49,7 +104,7 @@ typedef struct DiskInfo {
     short driveGroup;
     short status;
     char modelName[MAX_DISK_MODELNAME_LEN];
-    char capacity[MAX_DISK_CAPACITY_LEN];
+    char capacity[MAX_CAPACITY_LEN];
     char mediaType[MAX_DISK_MEDIATYPE_LEN];
     char interface[MAX_DISK_INTERFACE_LEN];
     char mappedPartition[MAX_MOUNTPATH_LEN];

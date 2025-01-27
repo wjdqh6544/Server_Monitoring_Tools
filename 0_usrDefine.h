@@ -2,13 +2,16 @@
 
 #define USRDEFINE_H
 
-#define UNIT_COUNT 6
 
-/* common */
-#define BUF_MAX_LINE 128
-#define CHECK_OMREPORT "/opt/dell/srvadmin/bin/omreport 2>&1"
-#define CHECK_PERCCLI "/opt/MegaRAID/perccli/perccli64 2>&1"
-#define ERROR_MSG_LEN 256
+/* User custom */
+#define UNIT_COUNT 6
+#define MAX_CPU_COUNT 2
+#define MAX_FAN_COUNT 6
+#define MAX_PSU_COUNT 2
+#define MAX_STORAGE_COUNT 16
+
+/* Critical Point */
+#define BBU_CAPACITY_CRITICAL_POINT 200
 #define CPU_TEMP_CRITICAL_POINT 65
 #define CPU_USAGE_CRITICAL_PERCENT 85
 #define DISK_USAGE_CRITICAL_PERCENT 90
@@ -20,16 +23,69 @@
 #define STORAGE_TEMP_CRITICAL_POINT 60
 #define SWAP_USAGE_CRITICAL_PERCENT 0
 
+/* common */
+#define BUF_MAX_LINE 128
+#define CHECK_OMREPORT "/opt/dell/srvadmin/bin/omreport 2>&1"
+#define CHECK_PERCCLI "/opt/MegaRAID/perccli/perccli64 2>&1"
+#define ERROR_MSG_LEN 256
+#define MAX_PARTS_NAME_LEN 64
+#define INFO_CMOS_BATTERY_GOOD "Good"
+#define INFO_CPU_PROCESSOR_NAME "Processor Brand"
+#define INFO_CPU_STATE "State"
+#define INFO_CPU_CORE_CNT "Core Count"
+#define INFO_FORM_STR " : %[^\n]s"
+#define INFO_FORM_NUM " : %hd"
+#define INFO_HOSTNAME "Host Name"
+#define INFO_INDEX "Index"
+#define INFO_MEM_ERROR_COLLECTION "Error Correction"
+#define INFO_MEM_INSTALLED_CAP "Installed Capacity"
+#define INFO_MEM_SLOT_TOTAL "Slots Available"
+#define INFO_MEM_SLOT_USED "Slots Used"
+#define INFO_MEM_UNIT_CONNECTOR "Connector Name"
+#define INFO_MEM_UNIT_TYPE "Type"
+#define INFO_MEM_UNIT_SIZE "Size"
+#define INFO_NA "NA"
+#define INFO_NAME "Probe Name"
+#define INFO_NICS_CON_STATUS "Connection Status"
+#define INFO_NICS_CONNECT "Connected"
+#define INFO_NICS_DISCONNECT "Disconnected"
+#define INFO_NICS_DESCRIPTION "Description"
+#define INFO_NICS_DETAIL_INTERFACE "Interface: %s"
+#define INFO_NICS_DETAIL_VALUE "Value"
+#define INFO_NICS_DETAIL_SPEED "Speed"
+#define INFO_NICS_INTERFACE_NAME "Interface Name"
+#define INFO_NICS_TEAM_INTERFACES "Team Interface(s)"
+#define INFO_READING "Reading"
+#define INFO_STATUS "Status"
+#define INFO_STATE_PRESENT "Present"
+#define INFO_STATUS_OK "Ok"
+#define INFO_STATUS_UNKNOWN "Unknown"
+#define INFO_SERVER_MODEL "Chassis Model"
+#define INFO_SERVICE_TAG "Chassis Service Tag"
+#define INFO_SERVICE_CODE "Express Service Code"
+#define TYPE_NICS_DISCONNECT 0
+#define TYPE_NICS_CONNECT 1
+#define TYPE_STATUS_OK 1
+#define TYPE_STATUS_UNKNOWN -100
+#define TYPE_STATUS_CRITICAL 0
+
 /* hw_info.c */
-#define BBU_CAPACITY_CRITICAL_POINT 200
+#define GET_CMOS_BATTERY_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis batteries"
+#define GET_CPU_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis processors"
 #define GET_DISK_COUNT "/opt/MegaRAID/perccli/perccli"
 #define GET_DISK_INFO_COMMAND "/opt/MegaRAID/perccli/perccli64 /call show all"
 #define GET_DISK_NAME "/opt/MegaRAID/perccli/perccli64 /call/eall/sall show all"
+#define GET_FAN_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis fans"
+#define GET_MEM_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis memory"
+#define GET_NICS_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis nics"
+#define GET_NICS_INFO_COMMAND_DETAIL "/opt/dell/srvadmin/bin/omreport chassis nics index=%d"
+#define GET_PSU_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis pwrsupplies"
+#define GET_SERVER_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis info"
 #define GET_VDISK_LIST "/opt/MegaRAID/perccli/perccli64 /call/vall show"
 #define GET_VDISK_FILESYSTEM "/opt/MegaRAID/perccli/perccli64 /call/vall show all"
 #define MAX_BBU_VOLTAGE_LEN 10
 #define MAX_BBU_CAPACITY_LEN 10
-#define MAX_DISK_CAPACITY_LEN 12
+#define MAX_CAPACITY_LEN 16
 #define MAX_DISK_MODELNAME_LEN 32
 #define MAX_DISK_INTERFACE_LEN 5
 #define MAX_DISK_MEDIATYPE_LEN 5
@@ -167,8 +223,6 @@
 #define GET_RAID_TEMP_PERCCLI_COMMAND "/opt/MegaRAID/perccli/perccli64 /c0 show temperature"
 #define GET_STORAGE_TEMP_PERCCLI_COMMAND "/opt/MegaRAID/perccli/perccli64 /c0/eall/sall show all | grep Temperature"
 #define INLET_TEMP "Inlet"
-#define MAX_CPU_COUNT 2
-#define MAX_STORAGE_COUNT 16
 #define MAX_LOG_PATH_LEN 70 // LogFile Location: /var/log/~: 40(path) + 29(filename: <type>_history-YYYYDDMM)
 #define RAID_CORE_TEMP "ROC temperature(Degree Celsius)"
 #define RAID_CTRL_TEMP "Ctrl temperature(Degree Celsius)"

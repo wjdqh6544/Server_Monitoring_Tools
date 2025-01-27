@@ -6,10 +6,329 @@
 #include <string.h>
 #include <dirent.h>
 
-extern Unit_Mapping unitMap[];
+/* Functions that get server information from omreport (System Parts include CPU, Memory, PSU, Network, and so on.) */
+void get_System_Information_from_Omreport(SystemInfo* systemBuf){
+    // Start initializaiton
+    strcpy(systemBuf->hostname, "N/A");
+    strcpy(systemBuf->serverModel, "N/A");
+    strcpy(systemBuf->serviceTag, "N/A");
+    strcpy(systemBuf->serviceCode, "N/A");
+
+    for (int i = 0; i < MAX_CPU_COUNT; i++){
+        strcpy(systemBuf->cpu[i].name, "N/A");
+        systemBuf->cpu[i].status = -100;
+        systemBuf->cpu[i].coreCnt = -100;
+    }
+
+    systemBuf->mem.slotsTotal = -100;
+    systemBuf->mem.slotsUsed = -100;
+    strcpy(systemBuf->mem.installedCapacity, "N/A");
+    strcpy(systemBuf->mem.errorCorrection, "N/A");
+    systemBuf->mem.unit = NULL;
+
+    strcpy(systemBuf->cmosBattery.name, "N/A");
+    systemBuf->cmosBattery.status = -100;
+
+    for (int i = 0; i < MAX_FAN_COUNT; i++){
+        systemBuf->fan[i].status = -100;
+        strcpy(systemBuf->fan[i].rpm, "N/A");
+        strcpy(systemBuf->fan[i].name, "N/A");
+    }
+
+    systemBuf->ifaCount = -100;
+    systemBuf->ifa = NULL;
+
+    for (int i = 0; i < MAX_PSU_COUNT; i++){
+        systemBuf->psuStatus[i] = -100;
+    }
+    // Finish initialization
+
+    get_Server_Information_from_Omreport(systemBuf->hostname, systemBuf->serverModel, systemBuf->serviceTag, systemBuf->serviceCode);
+    get_CPU_Information_from_Omreport(systemBuf->cpu);
+    get_Memory_Information_from_Omreport(&(systemBuf->mem));
+    get_CMOS_Battery_Status_from_Omreport(&(systemBuf->cmosBattery));
+    get_Fan_Status_from_Omreport(systemBuf->fan);
+    get_IFA_Information_from_Omreport(&(systemBuf->ifaCount), &(systemBuf->ifa));
+    get_PSU_Status_from_Omreport(systemBuf->psuStatus);
+}
+
+void get_Server_Information_from_Omreport(char* hostname, char* serverModel, char* serviceTag, char* serviceCode){ // Get Server Information: Hostname, Service Tag, Service Code (for DELL)
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+
+    if ((omreport_ptr = popen(GET_SERVER_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_Server_Information_from_Omreport", "Omreport - Server Info.");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL) { // Extract Hostname, Server Model, Service Tag, Service Code
+        if ((targetPos = strstr(lineBuf, INFO_HOSTNAME)) != NULL) {
+            sscanf(targetPos + strlen(INFO_HOSTNAME), INFO_FORM_STR, hostname);
+        } else if ((targetPos = strstr(lineBuf, INFO_SERVER_MODEL)) != NULL) {
+            sscanf(targetPos + strlen(INFO_SERVER_MODEL), INFO_FORM_STR, serverModel);
+        } else if ((targetPos = strstr(lineBuf, INFO_SERVICE_TAG)) != NULL) {
+            sscanf(targetPos + strlen(INFO_SERVICE_TAG), INFO_FORM_STR, serviceTag);
+        } else if ((targetPos = strstr(lineBuf, INFO_SERVICE_CODE)) != NULL) {
+            sscanf(targetPos + strlen(INFO_SERVICE_CODE), INFO_FORM_STR, serviceCode);
+        }
+    }
+
+    pclose(omreport_ptr);
+}
+
+void get_CPU_Information_from_Omreport(CPUInfo* cpuBuf){ // Get CPU Information: CPU Name, Status, Core Count
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, valueBuf[BUF_MAX_LINE];
+    char* targetPos = NULL;
+    int index = 0, existCPU = 1;
+
+    if ((omreport_ptr = popen(GET_CPU_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_CPU_Information_from_Omreport", "Omreport - CPU");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL) { 
+        if ((targetPos = strstr(lineBuf, INFO_INDEX)) != NULL) { // Extract index of CPU
+            sscanf(targetPos + strlen(INFO_INDEX), " : %d", &index);
+        } else if ((targetPos = strstr(lineBuf, INFO_STATUS)) != NULL) { // Check whether CPU is occupied. Status is Unknown (CPU is not occupied)
+            sscanf(targetPos + strlen(INFO_STATUS), INFO_FORM_STR, valueBuf);
+            existCPU = ((strcmp(valueBuf, INFO_STATUS_UNKNOWN) == 0) ? 0 : 1);
+        }
+        
+        if (existCPU == 0) { // CPU is not occupied.
+            continue;
+        }
+        
+        if ((targetPos = strstr(lineBuf, INFO_CPU_PROCESSOR_NAME)) != NULL) { // Extract CPU Name
+            sscanf(targetPos + strlen(INFO_CPU_PROCESSOR_NAME), INFO_FORM_STR, cpuBuf[index].name);
+        } else if ((targetPos = strstr(lineBuf, INFO_CPU_STATE)) != NULL) { // Extract CPU State
+            sscanf(targetPos + strlen(INFO_CPU_STATE), INFO_FORM_STR, valueBuf);
+            cpuBuf[index].status = ((strcmp(valueBuf, INFO_STATE_PRESENT) == 0) ? TYPE_STATUS_OK : TYPE_STATUS_CRITICAL); // CPU State: OK or Not OK
+        } else if ((targetPos = strstr(lineBuf, INFO_CPU_CORE_CNT)) != NULL) { // Extract the number of CPU Core.
+            sscanf(targetPos + strlen(INFO_CPU_CORE_CNT), INFO_FORM_NUM, &(cpuBuf[index].coreCnt));
+        }
+    }
+
+    pclose(omreport_ptr);
+}
+
+void get_Memory_Information_from_Omreport(MEMInfo* memoryBuf){ // Get Memory Information: RAM Slot (Available / Used), RAM Size (installed), ErrorCollection, Each unit information
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, valueBuf[BUF_MAX_LINE];
+    char* targetPos = NULL;
+    short detail = 0, idx = 0;
+
+    if ((omreport_ptr = popen(GET_MEM_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_Memory_Information_from_Omreport", "Omreport - Memory");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL) {
+        if (detail == 0) {
+            if ((targetPos = strstr(lineBuf, INFO_MEM_INSTALLED_CAP)) != NULL) { // Extract installed memory capacity
+                sscanf(targetPos + strlen(INFO_MEM_INSTALLED_CAP), INFO_FORM_STR, memoryBuf->installedCapacity);
+            } else if ((targetPos = strstr(lineBuf, INFO_MEM_SLOT_TOTAL)) != NULL) { // Extract the number of total memory slots 
+                sscanf(targetPos + strlen(INFO_MEM_SLOT_TOTAL), INFO_FORM_NUM, &(memoryBuf->slotsTotal));
+            } else if ((targetPos = strstr(lineBuf, INFO_MEM_SLOT_USED)) != NULL) { // Extract the number of used memory slots
+                sscanf(targetPos + strlen(INFO_MEM_SLOT_USED), INFO_FORM_NUM, &(memoryBuf->slotsUsed));
+                
+                if (memoryBuf->unit != NULL) {
+                    free(memoryBuf->unit);
+                    memoryBuf->unit = NULL;
+                }
+
+                memoryBuf->unit = (MEM_UNIT_INFO*)calloc(memoryBuf->slotsUsed, sizeof(MEM_UNIT_INFO));
+            } else if ((targetPos = strstr(lineBuf, INFO_MEM_ERROR_COLLECTION)) != NULL) { // Extract error correction method
+                sscanf(targetPos + strlen(INFO_MEM_ERROR_COLLECTION), INFO_FORM_STR, memoryBuf->errorCorrection);
+                detail = 1;
+            }
+        } else { // detail != 0
+            if (idx < memoryBuf->slotsUsed) {
+                if ((targetPos = strstr(lineBuf, INFO_INDEX)) != NULL) { // Extract memory unit index
+                    sscanf(targetPos + strlen(INFO_INDEX), INFO_FORM_NUM, &idx);
+                } else if ((targetPos = strstr(lineBuf, INFO_STATUS)) != NULL) { // Extract memroy unit status
+                    sscanf(targetPos + strlen(INFO_STATUS), INFO_FORM_STR, valueBuf);
+                    memoryBuf->unit[idx].status = ((strcmp(valueBuf, INFO_STATUS_OK) == 0) ? TYPE_STATUS_OK : TYPE_STATUS_CRITICAL); // Memory Unit status: OK or not OK
+                } else if ((targetPos = strstr(lineBuf, INFO_MEM_UNIT_CONNECTOR)) != NULL) { // Extract connector name embedded memory unit 
+                    sscanf(targetPos + strlen(INFO_MEM_UNIT_CONNECTOR), INFO_FORM_STR, memoryBuf->unit[idx].connectorName);
+                } else if ((targetPos = strstr(lineBuf, INFO_MEM_UNIT_TYPE)) != NULL) { // Extract memory unit type (ex. DDR4)
+                    sscanf(targetPos + strlen(INFO_MEM_UNIT_TYPE), INFO_FORM_STR, memoryBuf->unit[idx].type);
+                } else if ((targetPos = strstr(lineBuf, INFO_MEM_UNIT_SIZE)) != NULL) { // Extract memory unit size
+                    sscanf(targetPos + strlen(INFO_MEM_UNIT_SIZE), INFO_FORM_STR, memoryBuf->unit[idx].capacity);
+                    idx = ((idx == 3) ? 4 : 3);
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    pclose(omreport_ptr);
+}
+
+void get_CMOS_Battery_Status_from_Omreport(CMOS_BAT_INFO* cmosBatteryBuf){ // Get CMOS Battery status: Good or else
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+
+    if ((omreport_ptr = popen(GET_CMOS_BATTERY_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_CMOS_Battery_Status_from_Omreport", "Omreport - Batteries");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL){
+        if ((targetPos = strstr(lineBuf, INFO_NAME)) != NULL) { // Extract battery name
+            sscanf(targetPos + strlen(INFO_NAME), INFO_FORM_STR, cmosBatteryBuf->name);
+        } else if ((targetPos = strstr(lineBuf, INFO_READING)) != NULL) { // Extract battery status
+            sscanf(targetPos + strlen(INFO_READING), INFO_FORM_STR, lineBuf);
+            cmosBatteryBuf->status = ((strcmp(lineBuf, INFO_CMOS_BATTERY_GOOD) == 0) ? TYPE_STATUS_OK : TYPE_STATUS_CRITICAL); // Battery status: OK or not
+        }
+    }
+
+    pclose(omreport_ptr);
+}
+
+void get_Fan_Status_from_Omreport(FANInfo* fanBuf){ // Get fan status: Fan name, rpm, status
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+    short idx = 0;
+
+    if ((omreport_ptr = popen(GET_FAN_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_FAN_Status_from_Omreport", "Omreport - Fans");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL){
+        if ((targetPos = strstr(lineBuf, INFO_INDEX)) != NULL) { // Extract index name
+            sscanf(targetPos + strlen(INFO_INDEX), INFO_FORM_NUM, &idx);
+        } else if ((targetPos = strstr(lineBuf, INFO_STATUS)) != NULL) { // Extract fan status
+            sscanf(targetPos + strlen(INFO_STATUS), INFO_FORM_STR, lineBuf);
+            fanBuf[idx].status = ((strcmp(lineBuf, INFO_STATUS_OK) == 0) ? TYPE_STATUS_OK : TYPE_STATUS_CRITICAL); // Fan status: OK or not
+        } else if ((targetPos = strstr(lineBuf, INFO_NAME)) != NULL) { // Extract fan name
+            sscanf(targetPos + strlen(INFO_NAME), INFO_FORM_STR, fanBuf[idx].name);
+        } else if ((targetPos = strstr(lineBuf, INFO_READING)) != NULL) { // Extract fan RPM
+            sscanf(targetPos + strlen(INFO_READING), INFO_FORM_STR, fanBuf[idx].rpm);
+        }
+    }
+
+    pclose(omreport_ptr);
+}
+
+void get_IFA_Information_from_Omreport(short* ifaCount, IFAInfo** ifaBuf){ // Get network interface information: interface name (Linux, Card model name), speed, connected / disconnected
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+    short idx = 0;
+
+    if ((omreport_ptr = popen(GET_NICS_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_IFA_Information_from_Omreport", "Omreport - nics, count");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL){ // Get the number of physical network interface
+        if ((targetPos = strstr(lineBuf, INFO_INDEX)) != NULL) { 
+            sscanf(targetPos + strlen(INFO_INDEX), INFO_FORM_NUM, ifaCount); // *ifaCount -> Index
+        } else if (strstr(lineBuf, INFO_NICS_TEAM_INTERFACES) != NULL) {
+            break;
+        }
+    }
+
+    *ifaCount += 1;
+
+    pclose(omreport_ptr);
+
+    if (*ifaBuf != NULL) {
+        free(*ifaBuf);
+        *ifaBuf = NULL;
+    }
+
+    *ifaBuf = (IFAInfo*)calloc((*ifaCount), sizeof(IFAInfo)); // Create Array of interface
+
+    if ((omreport_ptr = popen(GET_NICS_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_IFA_Information_from_Omreport", "Omreport - nics, info");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL){ 
+        if ((targetPos = strstr(lineBuf, INFO_INDEX)) != NULL) { // Extract index of each network interface.
+            sscanf(targetPos + strlen(INFO_INDEX), INFO_FORM_NUM, &idx);
+        } else if ((targetPos = strstr(lineBuf, INFO_NICS_INTERFACE_NAME)) != NULL) { // Extract interface name in Linux
+            sscanf(targetPos + strlen(INFO_NICS_INTERFACE_NAME), INFO_FORM_STR, (*ifaBuf)[idx].name);
+        } else if ((targetPos = strstr(lineBuf, INFO_NICS_DESCRIPTION)) != NULL) { // Extract network card name
+            sscanf(targetPos + strlen(INFO_NICS_DESCRIPTION), INFO_FORM_STR, (*ifaBuf)[idx].ifName);
+        } else if ((targetPos = strstr(lineBuf, INFO_NICS_CON_STATUS)) != NULL) { // Extract connection status. (Connected or Disconnected)
+            sscanf(targetPos + strlen(INFO_NICS_CON_STATUS), INFO_FORM_STR, lineBuf);
+            (*ifaBuf)[idx].connected = ((strcmp(lineBuf, INFO_NICS_CONNECT) == 0) ? TYPE_NICS_CONNECT : TYPE_NICS_DISCONNECT); // convert status to numerical code.
+        }
+
+        if (strstr(lineBuf, INFO_NICS_TEAM_INTERFACES) != NULL) {
+            break;
+        }
+    }
+
+    pclose(omreport_ptr);
+
+    get_Interface_Speed_from_Omreport(*ifaCount, (*ifaBuf));
+}
+
+void get_Interface_Speed_from_Omreport(short ifaCount, IFAInfo* ifaBuf){ // Get speed of interface
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, searchBuf[BUF_MAX_LINE];
+    char* targetPos = NULL;
+    int physical_ifa = 0;
+
+    for (int i = 0; i < (int)ifaCount; i++){
+        sprintf(lineBuf, GET_NICS_INFO_COMMAND_DETAIL, i); // Get command (Detail information of each network interface)
+
+        if ((omreport_ptr = popen(lineBuf, "r")) == NULL){
+            exception(-2, "get_Interface_Speed_from_Omreport", "Omreport - nics");
+            return;
+        }
+
+        while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL){
+            if (physical_ifa == 0) {
+                sprintf(searchBuf, INFO_NICS_DETAIL_INTERFACE, ifaBuf[i].name); // Get physical interface name (in Linux, ex. eno1)
+                physical_ifa = ((strstr(lineBuf, searchBuf) != NULL) ? 1 : 0); // Find physical interface section.
+            } else { // physical_ifa != 0 -> Success to find physical interface section.
+                if ((targetPos = strstr(lineBuf, INFO_NICS_DETAIL_SPEED)) != NULL) {
+                    fgets(lineBuf, sizeof(lineBuf), omreport_ptr);
+                    sscanf(lineBuf + strlen(INFO_NICS_DETAIL_VALUE), INFO_FORM_STR, ifaBuf[i].speed);
+                    break;
+                }
+            }
+        }
+
+        pclose(omreport_ptr);
+    }
+}
+
+void get_PSU_Status_from_Omreport(short* psuStatusBuf){ // Get status of Power Supplies.
+    FILE* omreport_ptr = NULL;
+    char lineBuf[BUF_MAX_LINE] = { '\0' };
+    char* targetPos = NULL;
+    short idx = 0;
+
+    if ((omreport_ptr = popen(GET_PSU_INFO_COMMAND, "r")) == NULL) {
+        exception(-2, "get_PSU_Status_from_Omreport", "Omreport - Pwrsupplies");
+        return;
+    }
+
+    while (fgets(lineBuf, sizeof(lineBuf), omreport_ptr) != NULL){
+        if ((targetPos = strstr(lineBuf, INFO_INDEX)) != NULL) { // Extract index
+            sscanf(targetPos + strlen(INFO_INDEX), INFO_FORM_NUM, &idx);
+            fgets(lineBuf, sizeof(lineBuf), omreport_ptr); // Extract PSU Status
+            sscanf(targetPos + strlen(INFO_STATUS), INFO_FORM_STR, lineBuf);
+            psuStatusBuf[idx] = ((strcmp(lineBuf, INFO_STATUS_OK) == 0) ? TYPE_STATUS_OK : TYPE_STATUS_CRITICAL); // Battery status: OK or not
+        }
+    }
+
+    pclose(omreport_ptr);
+}
 
 /* Functions that get disk information from perccli */
-int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt) {
+int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt){ // Get virtual disks information from Perccli command.
     // vdBuf -> Pointer of float Array. Array is made in this function.
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, statusBuf[BUF_MAX_LINE], accessBuf[BUF_MAX_LINE], capUnitBuf[BUF_MAX_LINE];
@@ -104,7 +423,7 @@ int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt) {
     return 0;
 }
 
-void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt) {
+void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt){ // Get the fileSystem path connected to Virtual disk.
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, vdProperties[BUF_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
@@ -131,7 +450,7 @@ void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt) {
     pclose(perccli_ptr);
 }
 
-int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){
+int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){ // Get disk information: Capacity, Disk ID, Status, and so on.
     // diskBuf -> Pointer of float Array. Array is made in this function.
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, capUnitBuf[BUF_MAX_LINE], statusBuf[BUF_MAX_LINE], driveGroupBuf[BUF_MAX_LINE];
@@ -417,7 +736,7 @@ void get_CPU_Usage_Percent_of_each_Core(float** usage_buf_ptr){ // Get CPU usage
     fclose(fp);
 }
 
-int get_Physical_CPU_Count(int totalCore) { // Get the number of physical CPU installed to server. 
+int get_Physical_CPU_Count(int totalCore){ // Get the number of physical CPU installed to server. 
     FILE* fp = NULL;
     int id = 0, tmp = 0;
     char fullpath[MAX_PHYSICAL_CPU_PATH_LEN] = { '\0' };
