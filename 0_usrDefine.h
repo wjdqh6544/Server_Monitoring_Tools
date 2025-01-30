@@ -1,7 +1,8 @@
 #ifndef USRDEFINE_H
 
 #define USRDEFINE_H
-
+#define STR_INIT(x) strcpy(x, NA_STR)
+#define STRN_CMP_EQUAL(x,y) (strlen(x) >= strlen(y)) && (strncmp(x, y, strlen(y)) == 0)
 
 /* User custom */
 #define UNIT_COUNT 6
@@ -24,10 +25,12 @@
 #define SWAP_USAGE_CRITICAL_PERCENT 0
 
 /* common */
-#define BUF_MAX_LINE 128
+#define BUF_MAX_LINE 256
+#define COMMAND_MAX_LINE 512
 #define CHECK_OMREPORT "/opt/dell/srvadmin/bin/omreport 2>&1"
 #define CHECK_PERCCLI "/opt/MegaRAID/perccli/perccli64 2>&1"
 #define ERROR_MSG_LEN 256
+#define NA_STR "N/A"
 #define MAX_PARTS_NAME_LEN 64
 #define INFO_CMOS_BATTERY_GOOD "Good"
 #define INFO_CPU_PROCESSOR_NAME "Processor Brand"
@@ -185,11 +188,36 @@
 #define TYPE_VD_ACCESS_BLOCKED 2
 
 /* os_info.c */
+// Docker container
+#define BRIDGE_PREFIX "(br)"
+#define CHECK_BRIDGE_FORM "br-"
+#define DOCKER_BRIDGE_FORM "%*s %s %*s %*s"
+#define DOCKER_ZERO_INTERFACE "docker0"
+#define DOCKER_VETH_INTERFACE_PREFIX "veth"
+#define GET_DOCKER_CONTAINER_NAME "docker ps --format {{.Names}}"
+#define GET_DOCKER_INSPECT_CONTAINER "docker inspect %s --format \"{{.State.Pid}}\""
+#define GET_DOCKER_BRIDGE_NAME "docker network ls | grep %s"
+#define GET_DOCKER_VETH_NAME "ip -br addr | grep if%d | awk \'{print $1}\' | cut -d '@' -f 1"
+#define GET_DOCKER_VETH_IP "nsenter -t %d -n ip addr show"
+#define IGMP_LOCATION "/proc/%d/net/igmp"
+#define IGMP_FORM "%d %*s %*s %*s %*s"
+#define NSENTER_FORM " inet %[^/]"
+#define MAX_DOCKER_CONTAINER_NAME_LEN 128
+// Networks Interface
+#define IPV4_LEN 16
+#define NET_DEV_FORM "%s %ld %*d %ld %ld %*d %*d %*d %*d %ld %*d %ld %ld %*d %*d %*d %*d"
+// Partitions
+#define DISKSTATS_FORM "%*d %*d %s %*d %*d %ld %*d %*d %*d %ld %*d %*d %*d %*d %*d %*d %*d %*d %*d %*d"
+#define DISKSTATS_LOCATION "/proc/diskstats"
+#define PATH_TMPFS "tmpfs"
 #define GET_MOUNTPATH_LSBLK "lsblk -a"
 #define MAX_FILESYSTEM_LEN 4096
 #define MAX_MOUNTPATH_LEN 4096
+#define MAX_SECTOR_PATH_LEN 512
 #define MOUNTS_FORM "%s %s %*s %*s %*s %*s"
 #define MOUNTS_LOCATION "/proc/mounts"
+#define GET_SECTOR_SIZE "/sys/block/%s/queue/hw_sector_size"
+#define DM_PATH "dm-"
 
 /* Main Program */
 #define ERROR_LOG_MAIN "/var/log/00_Server_Monitoring/main_program_log"

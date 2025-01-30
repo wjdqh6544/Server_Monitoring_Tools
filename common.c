@@ -3,6 +3,7 @@
 #include "zz_struct.h"
 #include <time.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -24,7 +25,7 @@ void get_Date(){
     dateBuf.sec = (short)(tm->tm_sec);
 }
 
-int check_Package_Installed(char* type) {
+short check_Package_Installed(char* type) {
     FILE* command = NULL;
     char buf[BUF_MAX_LINE] = { '\0' };
 
@@ -158,4 +159,11 @@ void remove_Space_of_Tail(char* ptr){ // Remove the space at the tail of String.
         idx--;
     }
     return;
+}
+
+void free_Array(void** ptr){ // Unload allocated Array from memory.
+    if (*ptr != NULL) {
+        free(*ptr);
+        *ptr = NULL;
+    }
 }

@@ -2,7 +2,7 @@
 
 #define STRUCT_H
 #include "0_usrDefine.h"
-#include <stdlib.h>
+#include <net/if.h>
 
 /* commom */
 typedef enum UNIT { KB, MB, GB, TB, PB, EB } UNIT;
@@ -20,6 +20,29 @@ typedef struct Unit_Mapping {
     UNIT unit;
     char* str;
 } Unit_Mapping;
+
+/* Network Interface */
+
+typedef struct DockerInfo {
+    short* checked;
+    char containerName[MAX_DOCKER_CONTAINER_NAME_LEN];
+    pid_t pid;
+    short ifaCount;
+    char** vethName;
+    char** ipv4_addr;
+    short* ifa_index;
+} DockerInfo;
+
+typedef struct IFASpeed {
+    char ipv4_addr[IPV4_LEN];
+    char ifa_name[MAX_DOCKER_CONTAINER_NAME_LEN];
+    float speedRX;
+    float speedTX;
+    size_t errorRX;
+    size_t errorTX;
+    size_t dropRX;
+    size_t dropTX;
+} IFASpeed;
 
 /* Parts Information */
 typedef struct CPUInfo {
@@ -48,19 +71,18 @@ typedef struct CMOS_BAT_INFO {
     short status;
 } CMOS_BAT_INFO;
 
-
 typedef struct FANInfo {
     short status;
     char rpm[MAX_CAPACITY_LEN];
     char name[MAX_PARTS_NAME_LEN];
 } FANInfo;
 
-typedef struct IFAInfo {
+typedef struct PHYSICAL_IFA_Info {
     char name[MAX_PARTS_NAME_LEN];
     char ifName[MAX_PARTS_NAME_LEN];
     short connected;
     char speed[MAX_CAPACITY_LEN];
-} IFAInfo;
+} PHYSICAL_IFA_Info;
 
 typedef struct SystemInfo {
     char hostname[MAX_PARTS_NAME_LEN];
@@ -72,7 +94,7 @@ typedef struct SystemInfo {
     CMOS_BAT_INFO cmosBattery;
     FANInfo fan[MAX_FAN_COUNT];
     short ifaCount;
-    IFAInfo* ifa;
+    PHYSICAL_IFA_Info* ifa;
     short psuStatus[MAX_PSU_COUNT];
 } SystemInfo;
 
@@ -131,7 +153,7 @@ typedef struct HBAInfo {
     BBUInfo bbuStatus;
 } HBAInfo;
 
-/* Temp, Usage Information */
+/* Temp Information */
 typedef struct TempInfo { // Celcius
     short inlet;
     short exhaust;
@@ -143,6 +165,7 @@ typedef struct TempInfo { // Celcius
     short storage[MAX_STORAGE_COUNT];
 } TempInfo;
 
+/* Usage Information */
 typedef struct CpuUsage { // %
     float usage;    
 } CpuUsage;
@@ -154,7 +177,7 @@ typedef struct MemUsage { // KB; Capacity
     size_t swapUse;
 } MemUsage;
 
-/* log content */
+/* saved struct to log */
 typedef struct TempLog {
     DateInfo date;
     TempInfo temp;

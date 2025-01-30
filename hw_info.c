@@ -3,36 +3,37 @@
 #include "os_info.h"
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 
-/* Functions that get server information from omreport (System Parts include CPU, Memory, PSU, Network, and so on.) */
+/* Functions that get server information (System Parts include CPU, Memory, PSU, Network, and so on.) */
 void get_System_Information_from_Omreport(SystemInfo* systemBuf){
     // Start initializaiton
-    strcpy(systemBuf->hostname, "N/A");
-    strcpy(systemBuf->serverModel, "N/A");
-    strcpy(systemBuf->serviceTag, "N/A");
-    strcpy(systemBuf->serviceCode, "N/A");
+    STR_INIT(systemBuf->hostname);
+    STR_INIT(systemBuf->serverModel);
+    STR_INIT(systemBuf->serviceTag);
+    STR_INIT(systemBuf->serviceCode);
 
     for (int i = 0; i < MAX_CPU_COUNT; i++){
-        strcpy(systemBuf->cpu[i].name, "N/A");
+        STR_INIT(systemBuf->cpu[i].name);
         systemBuf->cpu[i].status = -100;
         systemBuf->cpu[i].coreCnt = -100;
     }
 
     systemBuf->mem.slotsTotal = -100;
     systemBuf->mem.slotsUsed = -100;
-    strcpy(systemBuf->mem.installedCapacity, "N/A");
-    strcpy(systemBuf->mem.errorCorrection, "N/A");
+    STR_INIT(systemBuf->mem.installedCapacity);
+    STR_INIT(systemBuf->mem.errorCorrection);
     systemBuf->mem.unit = NULL;
 
-    strcpy(systemBuf->cmosBattery.name, "N/A");
+    STR_INIT(systemBuf->cmosBattery.name);
     systemBuf->cmosBattery.status = -100;
 
     for (int i = 0; i < MAX_FAN_COUNT; i++){
         systemBuf->fan[i].status = -100;
-        strcpy(systemBuf->fan[i].rpm, "N/A");
-        strcpy(systemBuf->fan[i].name, "N/A");
+        STR_INIT(systemBuf->fan[i].rpm);
+        STR_INIT(systemBuf->fan[i].name);
     }
 
     systemBuf->ifaCount = -100;
@@ -48,7 +49,7 @@ void get_System_Information_from_Omreport(SystemInfo* systemBuf){
     get_Memory_Information_from_Omreport(&(systemBuf->mem));
     get_CMOS_Battery_Status_from_Omreport(&(systemBuf->cmosBattery));
     get_Fan_Status_from_Omreport(systemBuf->fan);
-    get_IFA_Information_from_Omreport(&(systemBuf->ifaCount), &(systemBuf->ifa));
+    get_Physical_IFA_Information_from_Omreport(&(systemBuf->ifa), &(systemBuf->ifaCount));
     get_PSU_Status_from_Omreport(systemBuf->psuStatus);
 }
 
@@ -132,13 +133,14 @@ void get_Memory_Information_from_Omreport(MEMInfo* memoryBuf){ // Get Memory Inf
                 sscanf(targetPos + strlen(INFO_MEM_SLOT_TOTAL), INFO_FORM_NUM, &(memoryBuf->slotsTotal));
             } else if ((targetPos = strstr(lineBuf, INFO_MEM_SLOT_USED)) != NULL) { // Extract the number of used memory slots
                 sscanf(targetPos + strlen(INFO_MEM_SLOT_USED), INFO_FORM_NUM, &(memoryBuf->slotsUsed));
-                
-                if (memoryBuf->unit != NULL) {
-                    free(memoryBuf->unit);
-                    memoryBuf->unit = NULL;
+                free_Array((void**)memoryBuf->unit); // If allocated Array exists, Free the memory allocated for the existing array.
+                memoryBuf->unit = (MEM_UNIT_INFO*)malloc((memoryBuf->slotsUsed) * sizeof(MEM_UNIT_INFO));
+                for (int i = 0; i < memoryBuf->slotsUsed; i++){ // Initialization
+                    memoryBuf->unit[i].status = -100;
+                    STR_INIT(memoryBuf->unit[i].connectorName);
+                    STR_INIT(memoryBuf->unit[i].type);
+                    STR_INIT(memoryBuf->unit[i].capacity);
                 }
-
-                memoryBuf->unit = (MEM_UNIT_INFO*)calloc(memoryBuf->slotsUsed, sizeof(MEM_UNIT_INFO));
             } else if ((targetPos = strstr(lineBuf, INFO_MEM_ERROR_COLLECTION)) != NULL) { // Extract error correction method
                 sscanf(targetPos + strlen(INFO_MEM_ERROR_COLLECTION), INFO_FORM_STR, memoryBuf->errorCorrection);
                 detail = 1;
@@ -216,11 +218,13 @@ void get_Fan_Status_from_Omreport(FANInfo* fanBuf){ // Get fan status: Fan name,
     pclose(omreport_ptr);
 }
 
-void get_IFA_Information_from_Omreport(short* ifaCount, IFAInfo** ifaBuf){ // Get network interface information: interface name (Linux, Card model name), speed, connected / disconnected
+void get_Physical_IFA_Information_from_Omreport(PHYSICAL_IFA_Info** ifaBuf, short* ifaCount){ // Get network interface information: interface name (Linux, Card model name), speed, connected / disconnected
     FILE* omreport_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
     short idx = 0;
+
+    *ifaCount = -100;
 
     if ((omreport_ptr = popen(GET_NICS_INFO_COMMAND, "r")) == NULL) {
         exception(-2, "get_IFA_Information_from_Omreport", "Omreport - nics, count");
@@ -235,16 +239,19 @@ void get_IFA_Information_from_Omreport(short* ifaCount, IFAInfo** ifaBuf){ // Ge
         }
     }
 
-    *ifaCount += 1;
+    (*ifaCount)++;
 
     pclose(omreport_ptr);
 
-    if (*ifaBuf != NULL) {
-        free(*ifaBuf);
-        *ifaBuf = NULL;
+    free_Array((void**)ifaBuf); // If allocated Array exists, Free the memory allocated for the existing array.
+    *ifaBuf = (PHYSICAL_IFA_Info*)malloc((*ifaCount) * sizeof(PHYSICAL_IFA_Info)); // Create Array of interface
+    for (int i = 0; i < *ifaCount; i++){ // Initialization
+        
+        STR_INIT((*ifaBuf)[i].name);
+        STR_INIT((*ifaBuf)[i].ifName);
+        STR_INIT((*ifaBuf)[i].speed);
+        (*ifaBuf)[i].connected = -100;
     }
-
-    *ifaBuf = (IFAInfo*)calloc((*ifaCount), sizeof(IFAInfo)); // Create Array of interface
 
     if ((omreport_ptr = popen(GET_NICS_INFO_COMMAND, "r")) == NULL) {
         exception(-2, "get_IFA_Information_from_Omreport", "Omreport - nics, info");
@@ -270,10 +277,10 @@ void get_IFA_Information_from_Omreport(short* ifaCount, IFAInfo** ifaBuf){ // Ge
 
     pclose(omreport_ptr);
 
-    get_Interface_Speed_from_Omreport(*ifaCount, (*ifaBuf));
+    get_Interface_Speed_from_Omreport(*ifaBuf, *ifaCount);
 }
 
-void get_Interface_Speed_from_Omreport(short ifaCount, IFAInfo* ifaBuf){ // Get speed of interface
+void get_Interface_Speed_from_Omreport(PHYSICAL_IFA_Info* ifaBuf, short ifaCount){ // Get speed of interface
     FILE* omreport_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, searchBuf[BUF_MAX_LINE];
     char* targetPos = NULL;
@@ -327,10 +334,11 @@ void get_PSU_Status_from_Omreport(short* psuStatusBuf){ // Get status of Power S
     pclose(omreport_ptr);
 }
 
-/* Functions that get disk information from perccli */
-int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt){ // Get virtual disks information from Perccli command.
+/* Functions that get disk information */
+short get_VDisk_Information_from_Perccli(VDInfo** vdBuf, short* virtualDriveCnt){ // Get virtual disks information from Perccli command.
     // vdBuf -> Pointer of float Array. Array is made in this function.
     FILE* perccli_ptr = NULL;
+    static short priv_vdCnt = 0;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, statusBuf[BUF_MAX_LINE], accessBuf[BUF_MAX_LINE], capUnitBuf[BUF_MAX_LINE];
     char* targetPos = NULL;
 
@@ -341,26 +349,38 @@ int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt){ //
 
     while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
         if ((targetPos = strstr(lineBuf, VD_CNT)) != NULL) { // Extract the number of virtual disk
-            sscanf(targetPos += strlen(VD_CNT), "%d", virtualDriveCnt);
+            sscanf(targetPos += strlen(VD_CNT), "%hd", virtualDriveCnt);
             break;
         }
     }
 
     pclose(perccli_ptr);
 
+    if (*vdBuf != NULL){ // If allocated Array exists.
+        for (int i = 0; i < priv_vdCnt; i++) { // Free mountPath string
+            for (int j = 0; j < (*vdBuf)[i].mountPathCnt; j++){
+                free_Array((void**)&((*vdBuf)[i].mountPath[j])); 
+            }
+            free_Array((void**)&((*vdBuf)[i].mountPath));
+        }
+        free_Array((void**)vdBuf); // Free the memory allocated for the existing array.
+    }
+
     *vdBuf = (VDInfo*)malloc((*virtualDriveCnt) * sizeof(VDInfo));
     for (int i = 0; i < *virtualDriveCnt; i++) { // Initialization
         (*vdBuf)[i].driveGroup = -100;
         (*vdBuf)[i].virtualDrive = -100;
-        (*vdBuf)[i].type[0] = '\0';
         (*vdBuf)[i].status = -100;
         (*vdBuf)[i].access = -100;
-        (*vdBuf)[i].capacity[0] = '\0';
-        (*vdBuf)[i].vdName[0] = '\0';
-        (*vdBuf)[i].fileSystem[0] = '\0';
+        STR_INIT((*vdBuf)[i].type);
+        STR_INIT((*vdBuf)[i].capacity);
+        STR_INIT((*vdBuf)[i].vdName);
+        STR_INIT((*vdBuf)[i].fileSystem);
         (*vdBuf)[i].mountPathCnt = -100;
         (*vdBuf)[i].mountPath = NULL;
     }
+
+    priv_vdCnt = *virtualDriveCnt;
 
     if ((perccli_ptr = popen(GET_VDISK_LIST, "r")) == NULL) {
         exception(-2, "get_VDisk_OSDrive_Filesystem_from_Perccli", "Perccli - VDisk");
@@ -423,7 +443,7 @@ int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt){ //
     return 0;
 }
 
-void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt){ // Get the fileSystem path connected to Virtual disk.
+void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, short virtualDiskCnt){ // Get the fileSystem path connected to Virtual disk.
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, vdProperties[BUF_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
@@ -450,7 +470,7 @@ void get_VDisk_FileSystem_from_Perccli(VDInfo* vdBuf, int virtualDiskCnt){ // Ge
     pclose(perccli_ptr);
 }
 
-int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){ // Get disk information: Capacity, Disk ID, Status, and so on.
+short get_Disk_Information_from_Perccli(DiskInfo** diskBuf, short* diskCount){ // Get disk information: Capacity, Disk ID, Status, and so on.
     // diskBuf -> Pointer of float Array. Array is made in this function.
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, capUnitBuf[BUF_MAX_LINE], statusBuf[BUF_MAX_LINE], driveGroupBuf[BUF_MAX_LINE];
@@ -463,24 +483,24 @@ int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){ // Ge
 
     while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) {
         if ((targetPos = strstr(lineBuf, DISK_PHYSICAL_COUNT)) != NULL) { // Extract the number of physical disk
-            sscanf(targetPos += strlen(DISK_PHYSICAL_COUNT), "%d", diskCount);
+            sscanf(targetPos += strlen(DISK_PHYSICAL_COUNT), "%hd", diskCount);
             break;
         }
     }
 
+    free_Array((void**)diskBuf); // If allocated Array exists, Free the memory allocated for the existing array.
     *diskBuf = (DiskInfo*)malloc((*diskCount) * sizeof(DiskInfo));
-
     for (int i = 0; i < *diskCount; i++) { // Initialization
         (*diskBuf)[i].enclosureNum = -100;
         (*diskBuf)[i].slotNum = -100; 
         (*diskBuf)[i].deviceID = -100;
         (*diskBuf)[i].driveGroup = -100;
         (*diskBuf)[i].status = -100;
-        (*diskBuf)[i].modelName[0] = '\0';
-        (*diskBuf)[i].capacity[0] = '\0';
-        (*diskBuf)[i].mediaType[0] = '\0';
-        (*diskBuf)[i].interface[0] = '\0';
-        (*diskBuf)[i].mappedPartition[0] = '\0';
+        STR_INIT((*diskBuf)[i].modelName);
+        STR_INIT((*diskBuf)[i].capacity);
+        STR_INIT((*diskBuf)[i].mediaType);
+        STR_INIT((*diskBuf)[i].interface);
+        STR_INIT((*diskBuf)[i].mappedPartition);
     }
 
     while (fgets(lineBuf, sizeof(lineBuf), perccli_ptr) != NULL) { // Extract disk information
@@ -529,7 +549,7 @@ int get_Disk_Information_from_Perccli(DiskInfo** diskBuf, int* diskCount){ // Ge
     return 0;
 }
 
-void get_Disk_Product_Name_from_Perccli(DiskInfo* diskBuf, int diskCount){ // Get disk product name
+void get_Disk_Product_Name_from_Perccli(DiskInfo* diskBuf, short diskCount){ // Get disk product name
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE], searchStr[BUF_MAX_LINE];
     char* targetPos = NULL;
@@ -559,26 +579,26 @@ void get_Disk_Product_Name_from_Perccli(DiskInfo* diskBuf, int diskCount){ // Ge
     pclose(perccli_ptr);
 }
 
-/* Functions that get HBA Card information from perccli */
-int get_HBA_Information_from_Perccli(HBAInfo* HBABuf){ // Get HBA Card information from Perccli command.
+/* Functions that get HBA Card information */
+short get_HBA_Information_from_Perccli(HBAInfo* HBABuf){ // Get HBA Card information from Perccli command.
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE];
     char* targetPos = NULL;
 
-    HBABuf->HBA_Name[0] = '\0'; // Initialization
-    HBABuf->HBA_Bios_Ver[0] = '\0';
-    HBABuf->HBA_Serial_Num[0] = '\0';
-    HBABuf->HBA_Firmware_Ver[0] = '\0';
-    HBABuf->HBA_Driver_Name[0] = '\0';
-    HBABuf->HBA_Driver_Ver[0] = '\0';
+    STR_INIT(HBABuf->HBA_Name); // Initialization
+    STR_INIT(HBABuf->HBA_Bios_Ver);
+    STR_INIT(HBABuf->HBA_Serial_Num);
+    STR_INIT(HBABuf->HBA_Firmware_Ver);
+    STR_INIT(HBABuf->HBA_Driver_Name);
+    STR_INIT(HBABuf->HBA_Driver_Ver);
+    STR_INIT(HBABuf->bbuStatus.voltage);
+    STR_INIT(HBABuf->bbuStatus.designCapacity);
+    STR_INIT(HBABuf->bbuStatus.fullCapacity);
+    STR_INIT(HBABuf->bbuStatus.remainCapacity);
     HBABuf->status = -100;
     HBABuf->HBA_Cur_Personality = -100;
     HBABuf->HBA_Drive_Groups_Cnt = -100;
     HBABuf->bbuStatus.status = -100;
-    HBABuf->bbuStatus.voltage[0] = '\0';
-    HBABuf->bbuStatus.designCapacity[0] = '\0';
-    HBABuf->bbuStatus.fullCapacity[0] = '\0';
-    HBABuf->bbuStatus.remainCapacity[0] = '\0';
 
     if ((perccli_ptr = popen(GET_DISK_INFO_COMMAND, "r")) == NULL) {
         exception(-2, "get_HBA_Information_from_Perccli", "Perccli - HBA Card");
@@ -697,25 +717,21 @@ void get_BBU_Information_from_Perccli(BBUInfo* BBUBuf){ // Get BBU(Backup Batter
 /* Functions that get CPU information from Jiffies (/proc/cpuinfo) */
 void get_CPU_Usage_Percent_of_each_Core(float** usage_buf_ptr){ // Get CPU usage percent of each Core from Jiffies.
     // usage_buf_ptr -> Pointer of float Array. Array is made in this function.
-    unsigned long user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;
-    static unsigned long* priv_total = NULL;
-    static unsigned long* priv_idle = NULL;
+    size_t user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;
+    static size_t* priv_total = NULL, *priv_idle = NULL;
     FILE *fp = NULL;
     
     if (priv_total == NULL){
-        priv_total = (unsigned long*)calloc(get_CPU_Core_Count(), sizeof(unsigned long));
+        priv_total = (size_t*)calloc(get_CPU_Core_Count(), sizeof(size_t));
     }
 
     if (priv_idle == NULL){
-        priv_idle = (unsigned long*)calloc(get_CPU_Core_Count(), sizeof(unsigned long));
+        priv_idle = (size_t*)calloc(get_CPU_Core_Count(), sizeof(size_t));
     }
 
-    if (*usage_buf_ptr != NULL) { // If array is already created.
-        free(*usage_buf_ptr); // Free the memory allocated for the existing array.
-        *usage_buf_ptr = NULL;
+    if (*(usage_buf_ptr) == NULL) {
+        *usage_buf_ptr = (float*)malloc(get_CPU_Core_Count() * sizeof(float)); // Allocate new memory.
     }
-
-    *usage_buf_ptr = (float*)malloc(get_CPU_Core_Count() * sizeof(float)); // Allocate new memory.
 
     for (int i = 0; i < get_CPU_Core_Count(); (*usage_buf_ptr)[i++] = -100); // Initialization
 
@@ -736,9 +752,9 @@ void get_CPU_Usage_Percent_of_each_Core(float** usage_buf_ptr){ // Get CPU usage
     fclose(fp);
 }
 
-int get_Physical_CPU_Count(int totalCore){ // Get the number of physical CPU installed to server. 
+short get_Physical_CPU_Count(short totalCore){ // Get the number of physical CPU installed to server. 
     FILE* fp = NULL;
-    int id = 0, tmp = 0;
+    short id = 0, tmp = 0;
     char fullpath[MAX_PHYSICAL_CPU_PATH_LEN] = { '\0' };
     for (int i = 0; i < totalCore; i++){
         sprintf(fullpath, PHYSICAL_CPU_PATH_FORM, i);
@@ -747,7 +763,7 @@ int get_Physical_CPU_Count(int totalCore){ // Get the number of physical CPU ins
             return -100;
         }
 
-        fscanf(fp, "%d", &tmp);
+        fscanf(fp, "%hd", &tmp);
         id = (id < tmp) ? tmp : id;
         
         fclose(fp);
@@ -755,7 +771,7 @@ int get_Physical_CPU_Count(int totalCore){ // Get the number of physical CPU ins
     return id + 1;
 }
 
-int get_CPU_Core_Count(){ /* Get the number of all CPU Cores. 
+short get_CPU_Core_Count(){ /* Get the number of all CPU Cores. 
     For example, A server has 2 physical CPU and each CPU has 10 core, then this function returns "20")    */
 
     DIR *dir_ptr = NULL;

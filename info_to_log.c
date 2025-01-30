@@ -185,8 +185,8 @@ void get_Temperature_Perccli(TempInfo* tempBuf){ // Get temperature information 
 }
 
 void get_CPU_Usage_Percent_of_All_Core(CpuUsage* cpuUsageBuf){ // Get CPU Usage(%) from Jiffies
-    unsigned long user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;
-    static unsigned long priv_total = 0, priv_idle = 0;
+    size_t user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;
+    static size_t priv_total = 0, priv_idle = 0;
     FILE *fp = NULL;
     cpuUsageBuf->usage = -100; // Initialization; -100 means "N/A"
 
