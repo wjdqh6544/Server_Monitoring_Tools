@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
-DateInfo dateBuf;
+extern const DateInfo dateBuf;
 
 void signal_handler(int sig);
 void check_before_running(char* username);

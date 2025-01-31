@@ -7,7 +7,11 @@
 
 extern DateInfo dateBuf;
 
-int get_Memory_Usage_from_Log(MemUsage* memBuf) { // Get Memory (Physical, SWAP) Usage (Capacity) from log file.
+// int get_Warning_History_from_Log(){ // Get Warning History
+
+// }
+
+int get_Memory_Usage_from_Log(MemUsage* memBuf){ // Get Memory (Physical, SWAP) Usage (Capacity) from log file.
     int fd = -1;
     UsageLog logBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };

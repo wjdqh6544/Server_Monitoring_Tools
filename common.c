@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-extern DateInfo dateBuf;
+DateInfo dateBuf;
 
 void get_Date(){
     time_t current_time;
@@ -25,7 +25,7 @@ void get_Date(){
     dateBuf.sec = (short)(tm->tm_sec);
 }
 
-short check_Package_Installed(char* type) {
+int check_Package_Installed(char* type) {
     FILE* command = NULL;
     char buf[BUF_MAX_LINE] = { '\0' };
 
@@ -49,7 +49,7 @@ short check_Package_Installed(char* type) {
     return 1;
 }
 
-void exception(short code, char *func_name, char *detail){
+void exception(int code, char *func_name, char *detail){
     char type[ERROR_MSG_LEN];
     char *detail_str = (detail != NULL) ? detail : "";
     switch (code) {
@@ -72,7 +72,7 @@ void exception(short code, char *func_name, char *detail){
     printf("%04d-%02d-%02d %02d:%02d:%02d (func. - %s) Cannot %s: %s\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec, func_name, type, detail_str);
 }
 
-void get_Filename(char* fullpathBuf, char* path, char* filename, DateInfo* targetDate){ // Create a full path of Log file.
+void get_Filename(char* fullpathBuf, char* path, char* filename, const DateInfo* targetDate){ // Create a full path of Log file.
     if (path[strlen(path) - 1] == '/'){ // filename form: <type>-YYYYMMDD
         if (strcmp(filename, WARNING_LOG) == 0) {
             sprintf(fullpathBuf, "%s%s-%04d%02d", path, filename, targetDate->year, targetDate->month); // <path(Directory)>/warning_history-YYYYMM
@@ -88,7 +88,7 @@ void get_Filename(char* fullpathBuf, char* path, char* filename, DateInfo* targe
     }
 }
 
-short check_Log_Directory(char* fullpath, mode_t permissions){ // Check the presence of directory, and Create it if not exists.
+int check_Log_Directory(char* fullpath, mode_t permissions){ // Check the presence of directory, and Create it if not exists.
     DIR* dir_ptr = NULL;
     char path[MAX_LOG_PATH_LEN] = { '\0' };
     char* path_ptr = path + 1;

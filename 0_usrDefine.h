@@ -5,11 +5,13 @@
 #define STRN_CMP_EQUAL(x,y) (strlen(x) >= strlen(y)) && (strncmp(x, y, strlen(y)) == 0)
 
 /* User custom */
-#define UNIT_COUNT 6
-#define MAX_CPU_COUNT 2
-#define MAX_FAN_COUNT 6
-#define MAX_PSU_COUNT 2
-#define MAX_STORAGE_COUNT 16
+#define UNIT_COUNT 6 // Number of UNIT element. (Enumerate type, in zz_struct.h)
+#define MAX_CPU_COUNT 2 // Maximum number of CPUs that supported by a server unit.
+#define MAX_FAN_COUNT 6 // Maximum number of Cooling fan that supported by a server unit.
+#define MAX_PSU_COUNT 2 // Maximum number of Power Supply that supported by a server unit.
+#define MAX_STORAGE_COUNT 16 // Number of Storage that supported by a server unit.
+
+#define BUF_MAX_LINE 256
 
 /* Critical Point */
 #define BBU_CAPACITY_CRITICAL_POINT 200
@@ -25,7 +27,6 @@
 #define SWAP_USAGE_CRITICAL_PERCENT 0
 
 /* common */
-#define BUF_MAX_LINE 256
 #define COMMAND_MAX_LINE 512
 #define CHECK_OMREPORT "/opt/dell/srvadmin/bin/omreport 2>&1"
 #define CHECK_PERCCLI "/opt/MegaRAID/perccli/perccli64 2>&1"
@@ -37,7 +38,8 @@
 #define INFO_CPU_STATE "State"
 #define INFO_CPU_CORE_CNT "Core Count"
 #define INFO_FORM_STR " : %[^\n]s"
-#define INFO_FORM_NUM " : %hd"
+#define INFO_FORM_NUM " : %d"
+#define INFO_FORM_NUM_SHORT " : %hd"
 #define INFO_HOSTNAME "Host Name"
 #define INFO_INDEX "Index"
 #define INFO_MEM_ERROR_COLLECTION "Error Correction"
@@ -73,6 +75,7 @@
 #define TYPE_STATUS_CRITICAL 0
 
 /* hw_info.c */
+#define DISK_INFO_FORM "%hd:%hd %d %s %s %s %s %s %s"
 #define GET_CMOS_BATTERY_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis batteries"
 #define GET_CPU_INFO_COMMAND "/opt/dell/srvadmin/bin/omreport chassis processors"
 #define GET_DISK_COUNT "/opt/MegaRAID/perccli/perccli"
@@ -203,6 +206,27 @@
 #define IGMP_FORM "%d %*s %*s %*s %*s"
 #define NSENTER_FORM " inet %[^/]"
 #define MAX_DOCKER_CONTAINER_NAME_LEN 128
+// File Permissions
+#define GRPNAME_LEN 32
+#define MAX_PATH_LEN 32
+#define STAT_HISTORY_LOG "stat_history"
+#define STATUS_LEN 8
+#define FAILED_CHANGING -1
+#define FAILED_CHANGING_STR "Failed"
+#define NEED_CHANGING 1
+#define NEED_CHANGING_STR "Updated"
+#define NOT_NEED_CHANGING 0
+#define NOT_NEED_CHANGING_STR "OK"
+// Linux Users
+#define GET_LATEST_LOGIN_HISTORY_COMMAND "last -n 1 "
+#define LOGIN_DEFS_LOCATION "/etc/login.defs"
+#define PASSWD_LOCATION "/etc/passwd"
+#define PASSWD_FORM "%s"
+#define UID_FORM "%*s %d"
+#define UID_MIN_STR "UID_MIN"
+#define UID_MAX_STR "UID_MAX"
+#define WTMP_LOCATION "/var/log/wtmp"
+
 // Networks Interface
 #define IPV4_LEN 16
 #define NET_DEV_FORM "%s %ld %*d %ld %ld %*d %*d %*d %*d %ld %*d %ld %ld %*d %*d %*d %*d"
