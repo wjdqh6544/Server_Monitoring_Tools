@@ -7,7 +7,7 @@
 #include <string.h>
 #include <dirent.h>
 
-/* List of functions that get server information (System Parts include CPU, Memory, PSU, Network, and so on.) */
+/* List of functions of using to get server information (System Parts include CPU, Memory, PSU, Network, and so on.) */
 void get_System_Information_from_Omreport(SystemInfo* systemBuf){
     // Start initializaiton
     STR_INIT(systemBuf->hostname);
@@ -342,7 +342,7 @@ void get_PSU_Status_from_Omreport(int* psuStatusBuf){ // Get status of Power Sup
     pclose(omreport_ptr);
 }
 
-/* List of functions that get disk information */
+/* List of functions of using to get disk information */
 int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt){ // Get virtual disks information from Perccli command.
     // vdBuf -> Pointer of float Array. Array is made in this function.
     FILE* perccli_ptr = NULL;
@@ -594,7 +594,7 @@ void get_Disk_Product_Name_from_Perccli(DiskInfo* diskBuf, int diskCount){ // Ge
     pclose(perccli_ptr);
 }
 
-/* List of functions that get HBA Card information */
+/* List of functions of using to get HBA Card information */
 int get_HBA_Information_from_Perccli(HBAInfo* HBABuf){ // Get HBA Card information from Perccli command.
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE];
@@ -729,7 +729,7 @@ void get_BBU_Information_from_Perccli(BBUInfo* BBUBuf){ // Get BBU(Backup Batter
     pclose(perccli_ptr);
 }
 
-/* List of functions that get CPU information from Jiffies (/proc/cpuinfo) */
+/* List of functions of using to get CPU information from Jiffies (/proc/cpuinfo) */
 void get_CPU_Usage_Percent_of_each_Core(float** usage_buf_ptr){ // Get CPU usage percent of each Core from Jiffies.
     // usage_buf_ptr -> Pointer of float Array. Array is made in this function.
     size_t user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;

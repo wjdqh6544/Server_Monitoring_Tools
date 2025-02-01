@@ -3,6 +3,7 @@
 #define USRDEFINE_H
 #define STR_INIT(x) strcpy(x, NA_STR)
 #define STRN_CMP_EQUAL(x,y) (strlen(x) >= strlen(y)) && (strncmp(x, y, strlen(y)) == 0)
+#define CHECK_EXIST_USER(x) (strstr(x, USER_NOEXIST) == NULL)
 
 /* User custom */
 #define UNIT_COUNT 6 // Number of UNIT element. (Enumerate type, in zz_struct.h)
@@ -30,6 +31,7 @@
 #define COMMAND_MAX_LINE 512
 #define CHECK_OMREPORT "/opt/dell/srvadmin/bin/omreport 2>&1"
 #define CHECK_PERCCLI "/opt/MegaRAID/perccli/perccli64 2>&1"
+#define ERROR_LOG_MAIN "/var/log/00_Server_Monitoring/main_program_log"
 #define ERROR_MSG_LEN 256
 #define NA_STR "N/A"
 #define MAX_PARTS_NAME_LEN 64
@@ -226,7 +228,20 @@
 #define UID_MIN_STR "UID_MIN"
 #define UID_MAX_STR "UID_MAX"
 #define WTMP_LOCATION "/var/log/wtmp"
-
+//Linux Users Login
+#define BTMP_WTMP_FILENAME_LEN 16
+#define BTMP_WTMP_LOCATION "/var/log/"
+#define BTMP_NAME "btmp"
+#define WTMP_NAME "wtmp"
+#define TMP_LOCATION_FORM "%s%s"
+#define USER_NOEXIST "(NoExist)"
+#define GET_TMPLOG_LIST "ls -al %s | awk \'{print $9}\' | grep -E \"^%s*|^%s*\""
+#define LOGIN_SUCCESS 1
+#define LOGIN_SUCCESS_STR "SUCCESS"
+#define LOGIN_FAILED 0
+#define LOGIN_FAILED_STR "FAILED"
+#define IP_LOCAL_STR "Local / Console"
+#define IP_OTHER_STR "Other Methods"
 // Networks Interface
 #define IPV4_LEN 16
 #define NET_DEV_FORM "%s %ld %*d %ld %ld %*d %*d %*d %*d %ld %*d %ld %ld %*d %*d %*d %*d"
@@ -242,9 +257,12 @@
 #define MOUNTS_LOCATION "/proc/mounts"
 #define GET_SECTOR_SIZE "/sys/block/%s/queue/hw_sector_size"
 #define DM_PATH "dm-"
-
-/* Main Program */
-#define ERROR_LOG_MAIN "/var/log/00_Server_Monitoring/main_program_log"
+// Process Status (ps)
+#define GET_PS_COMMAND "ps -aux --sort=-%mem"
+#define GET_PS_INFO_FORM "%s %d %f %f %*s %ld %s %*s %s %s %[^\n]s"
+#define TTY_BACKGROUND "?"
+#define TTY_BACKGROUND_STR "<BG>"
+#define TIME_LEN 10
 
 /* Warning Log */
 #define TYPE_MEM_USAGE 1
@@ -262,7 +280,7 @@
 #define ERROR_LOG_COLLECTOR "/var/log/00_Server_Monitoring/collector_log"
 #define HISTORY_PATH "/var/log/00_Server_Monitoring/00_history" // 40
 #define LOG_PATH "/var/log/00_Server_Monitoring"
-#define USERNAME_LEN 64
+#define USERNAME_LEN 33
 
 /* Information to Log - Temperature */
 #define BBU_TEMP "Temperature"

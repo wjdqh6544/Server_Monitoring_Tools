@@ -13,14 +13,12 @@
 extern const DateInfo dateBuf;
 
 int main(void){
-    FileInfo* fileInfo = NULL;
+    ProcessInfo* psBuf = NULL;
+    int cnt = 10;
     get_Date();
-    int cnt = 0;
-    get_File_Information(&fileInfo, &cnt);
-    
+    get_Process_Status(&psBuf, cnt);
     for (int i = 0; i < cnt; i++) {
-        printf("%s (%d, %d, %d) (%d, %d, %d) (%d, %o, %o)\n", fileInfo[i].path, fileInfo[i].changed[0], fileInfo[i].ownerUID[0], fileInfo[i].ownerUID[1],
-        fileInfo[i].changed[1], fileInfo[i].groupGID[0], fileInfo[i].groupGID[1], fileInfo[i].changed[2], fileInfo[i].permission[0], fileInfo[i].permission[1]);
+        printf("%s %d %4.1f %4.1f %ld  %s  %s  %s  %s\n",
+        psBuf[i].userName, psBuf[i].pid, psBuf[i].cpu, psBuf[i].mem, psBuf[i].memUseSize, psBuf[i].tty, psBuf[i].start, psBuf[i].time, psBuf[i].command);
     }
-
 }

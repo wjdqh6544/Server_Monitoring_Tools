@@ -2,6 +2,15 @@
 
 #define OS_INFO_H
 
+/* List of functions of using to check System Running Process */
+int get_Process_Status(ProcessInfo** psBuf, int lineCnt);
+
+/* List of functions that check history that try to login this server */
+int get_Login_History(LoginInfo** historyBuf, int* historyCnt);
+int get_LineCnt_TMP_History();
+int save_History(LoginInfo* historyBuf, int* idx, char* commBuf);
+int compare_Date(const void* element1, const void* element2);
+
 /* List of functions that check file permissions */
 int get_File_Information(FileInfo** fileList, int* fileCnt);
 int copy_FilePath(char* targetFilePath, char* destination);

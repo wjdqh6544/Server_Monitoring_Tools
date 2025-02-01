@@ -24,13 +24,25 @@ typedef struct Unit_Mapping {
     char* str;
 } Unit_Mapping;
 
+typedef struct ProcessInfo {
+    char userName[UT_NAMESIZE + 1];
+    pid_t pid;
+    float cpu;
+    float mem;
+    size_t memUseSize;
+    char tty[UT_LINESIZE + 1];
+    char start[TIME_LEN];
+    char time[TIME_LEN];
+    char* command;
+} ProcessInfo;
+
 /* File Permissions */
 typedef struct FileInfo {
     char fullPath[MAX_MOUNTPATH_LEN];
     char path[MAX_PATH_LEN];
     int changed[3]; // [0]: uid / [1]: gid / [2]: permission | -1: ERROR, 0: Do not need to be changed, 1: Need to be changed.
-    int ownerUID[2]; // [0]: Before, [1]: After
-    int groupGID[2]; // [0]: Before, [1]: After
+    uid_t ownerUID[2]; // [0]: Before, [1]: After
+    gid_t groupGID[2]; // [0]: Before, [1]: After
     mode_t permission[2]; // [0]: Before, [1]: After
 } FileInfo;
 
@@ -41,9 +53,18 @@ typedef struct UserInfo {
     int grpCnt;
     gid_t* gid;
     DateInfo lastLogin;
-    char loginIP[UT_LINESIZE + 8];
+    char loginIP[UT_LINESIZE + 8]; // ex. Local(tty1) => 8 + UT_LINESIZE
     DateInfo lastChangePW;
 } UserInfo;
+
+typedef struct LoginInfo {
+    char userName[UT_NAMESIZE + 1];
+    uid_t uid;
+    int status; // Success or Failed
+    DateInfo logDate;
+    char deviceName[UT_LINESIZE + 1];
+    char loginIP[UT_LINESIZE + 1];
+} LoginInfo;
 
 /* Network Interface */
 typedef struct DockerInfo {

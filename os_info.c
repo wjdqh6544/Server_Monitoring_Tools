@@ -23,10 +23,254 @@
 
 extern const DateInfo dateBuf;
 
-/* List of functions that check history that try to login this server */
+/* List of functions of using to check System Running Process */
+int get_Process_Status(ProcessInfo** psBuf, int lineCnt) { // Get process status -> Sorted by RAM in decreasing order.
+    // lineCnt -> the number of displaying the data. It is remaining space of terminal window size.
+    FILE* ps_ptr = NULL;
+    char errorBuf[BUF_MAX_LINE] = { '\0' }, pathBuf[MAX_MOUNTPATH_LEN] = { '\0' };
 
+    if (*psBuf == NULL || lineCnt != (sizeof(*psBuf) / sizeof(ProcessInfo*))) { // If windows size is changed.
+        for (int i = 0; ((*psBuf != NULL) && ((size_t)i < (sizeof(*psBuf) / sizeof(ProcessInfo*)))); i++) {
+            free_Array((void**)&((*psBuf)[i].command));
+            free_Array((void**)&((*psBuf)[i].userName));
+        }
+        free_Array((void**)psBuf);
 
-/* List of functions that check file permissions */
+        if ((*psBuf = (ProcessInfo*)malloc(lineCnt * sizeof(ProcessInfo))) == NULL) {
+            exception(-4, "get_Process_Status", "malloc() - psBuf");
+            return -100;
+        }
+    }
+
+    for (int i = 0; i < lineCnt; i++) { // Intialization
+        STR_INIT((*psBuf)[i].userName);
+        (*psBuf)[i].pid = 0;
+        (*psBuf)[i].cpu = -100;
+        (*psBuf)[i].mem = -100;
+        (*psBuf)[i].memUseSize = 0;
+        STR_INIT((*psBuf)[i].tty);
+        STR_INIT((*psBuf)[i].start);
+        STR_INIT((*psBuf)[i].time);
+        (*psBuf)[i].command = NULL;
+    }
+
+    if ((ps_ptr = popen(GET_PS_COMMAND, "r")) == NULL) { // Get information from ps command
+        strcpy(errorBuf, "popen() - ");
+        strcat(errorBuf, GET_PS_COMMAND);
+        exception(-2, "get_Process_Status", errorBuf);
+    }
+
+    fgets(errorBuf, sizeof(errorBuf), ps_ptr); // Skip Header | USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND       
+    for (int i = 0; i < lineCnt; i++) {
+        fscanf(ps_ptr, GET_PS_INFO_FORM, (*psBuf)[i].userName, &((*psBuf)[i].pid), &((*psBuf)[i].cpu), &((*psBuf)[i].mem), &((*psBuf)[i].memUseSize), (*psBuf)[i].tty, (*psBuf)[i].start, (*psBuf)[i].time, pathBuf);
+        if (((*psBuf)[i].command = (char*)malloc(strlen(pathBuf) * sizeof(char))) == NULL) { // Allocate array for string (Command)
+            sprintf(errorBuf, "malloc() - psBuf[%d].command", i);
+            exception(-4, "get_Process_Status", errorBuf);
+            continue;
+        }
+        strcpy((*psBuf)[i].command, pathBuf);
+        if (STRN_CMP_EQUAL((*psBuf)[i].tty, TTY_BACKGROUND)) {
+            strcpy((*psBuf)[i].tty, TTY_BACKGROUND_STR);
+        }
+    }
+    pclose(ps_ptr);
+    return 0;
+}
+
+/* List of functions of using to check history that try to login this server */
+int get_Login_History(LoginInfo** historyBuf, int* historyCnt) { // Get the history of login (Success, Failed)
+    int idx = 0, btmpErr, wtmpErr;
+    char commBuf[BUF_MAX_LINE];
+    (void)historyBuf;
+    *historyCnt = get_LineCnt_TMP_History();
+
+    if ((*historyCnt) == -100) {
+        return -100;
+    }
+    
+    if (*historyBuf == NULL) { // Allocate Array for Login history
+        if ((*historyBuf = (LoginInfo*)malloc((*historyCnt) * sizeof(struct utmp))) == NULL) {
+            exception(-4, "get_Login_History", "malloc() - historyBuf");
+            return -100;
+        }
+    }
+
+    for (int i = 0; i < *historyCnt; i++) { // Initialization
+        STR_INIT((*historyBuf)[i].userName);
+        (*historyBuf)[i].uid = 0;
+        (*historyBuf)[i].status = -100;
+        (*historyBuf)[i].logDate = (DateInfo){ 0, 0, 0, 0, 0, 0 };
+        STR_INIT((*historyBuf)[i].loginIP);
+        STR_INIT((*historyBuf)[i].deviceName);
+    }
+    
+
+    sprintf(commBuf, GET_TMPLOG_LIST, BTMP_WTMP_LOCATION, BTMP_NAME, BTMP_NAME); // btmp path
+    btmpErr = save_History(*historyBuf, &idx, commBuf); // Save btmp info to array.
+
+    sprintf(commBuf, GET_TMPLOG_LIST, BTMP_WTMP_LOCATION, WTMP_NAME, WTMP_NAME); // wtmp path
+    wtmpErr = save_History(*historyBuf, &idx, commBuf); // Save btmp info to array.
+
+    qsort(*historyBuf, *historyCnt, sizeof(LoginInfo), compare_Date);
+
+    if (btmpErr == -100 && wtmpErr == -100) {
+        return -100;
+    } else if (btmpErr == -100 && wtmpErr != -100) { // btmpErr data load ERROR
+        return -99;
+    } else if (btmpErr != -100 && wtmpErr == -100) { // wtmpErr data load ERROR
+        return -98;
+    } else {
+        return 0;
+    }
+}
+
+int get_LineCnt_TMP_History() { // Get the number of line in btmp*, wtmp* log file.
+    char pathBuf[BUF_MAX_LINE], errorBuf[BUF_MAX_LINE], temp[BTMP_WTMP_FILENAME_LEN];
+    FILE *ls_ptr = NULL;
+    struct utmp utBuf;
+    int fd = -1, cnt = 0, buf = 0;
+
+    sprintf(pathBuf, GET_TMPLOG_LIST, BTMP_WTMP_LOCATION, BTMP_NAME, WTMP_NAME); // Get fileList of btmp*
+    if ((ls_ptr = popen(pathBuf, "r")) == NULL) {
+        strcpy(errorBuf, "popen() - ");
+        strcat(errorBuf, pathBuf);
+        exception(-2, "get_LineCnt_TMP_History", errorBuf);
+        return -100;
+    }
+
+    while (fscanf(ls_ptr, "%s", temp) != EOF) { // Get the number of row in btmp* / wtmp*
+        sprintf(pathBuf, TMP_LOCATION_FORM, BTMP_WTMP_LOCATION, temp);
+        if ((fd = open(pathBuf, O_RDONLY)) == -1) {
+            exception(-1, "get_LineCnt_TMP_History", pathBuf);
+            return -100;
+        }
+        buf = 0;
+        while(read(fd, &utBuf, sizeof(utBuf)) == sizeof(utBuf)) { // Count line of USER_PROCESS in a file
+            if ((utBuf.ut_type != USER_PROCESS) && (utBuf.ut_type != LOGIN_PROCESS)) { // Filtering
+                continue;
+            }
+            buf++;
+        }
+        close(fd);
+        cnt += buf;
+    }
+    pclose(ls_ptr);
+
+    return cnt;
+}
+
+int save_History(LoginInfo* historyBuf, int* idx, char* commBuf) { // Save history to Struct array.
+    // historyBuf: Array of login history / idx: index of array / commBuf: "ls -al" command for getting list of btmp / wtmp file 
+    // Not defined Macro in 0_usrDefine.h is defined at <utmp.h>. To see macro content, See "/usr/include/bits/utmp.h".
+    FILE* ls_ptr = NULL;
+    struct utmp utBuf;
+    struct passwd *pw = NULL;
+    struct tm *tm = NULL;
+    time_t loginTime;
+    int fd = -1;
+    char errorBuf[BUF_MAX_LINE] = { '\0' }, pathBuf[BUF_MAX_LINE] = { '\0' }, filenameBuf[UT_NAMESIZE + 1] = { '\0' };
+    
+    if ((ls_ptr = popen(commBuf, "r")) == NULL) { // Get List of btmp
+        sprintf(errorBuf, "popen() - (for Content) %s", commBuf);
+        exception(-2, "save_History", errorBuf);
+        return -100;
+    }
+
+    while (fscanf(ls_ptr, "%s", filenameBuf) != EOF) { // ls_ptr -> list of btmp filename 
+        sprintf(pathBuf, TMP_LOCATION_FORM, BTMP_WTMP_LOCATION, filenameBuf);
+        if ((fd = open(pathBuf, O_RDONLY)) == -1 ) {
+            exception(-1, "save_History", pathBuf);
+            return -100;
+        }
+
+        while (read(fd, &utBuf, sizeof(struct utmp)) == sizeof(struct utmp)) {
+            if ((utBuf.ut_type != USER_PROCESS) && (utBuf.ut_type != LOGIN_PROCESS)) { // Extrace history of Login success or fail
+                continue;
+            }
+
+            strncpy(historyBuf[*idx].userName, utBuf.ut_user, UT_NAMESIZE); // Copy username, (Maximum length of utBUf.ut_user is UT_NAMESIZE)
+
+            if ((pw = getpwnam(utBuf.ut_user)) != NULL) { // If user exist
+                historyBuf[*idx].uid = pw->pw_uid; // Copy UID
+            } else { // If user does not exist
+                if (strlen(historyBuf[*idx].userName) > UT_NAMESIZE - strlen(USER_NOEXIST)) { // If the length of username is more than displayable length.
+                    strncpy(filenameBuf, historyBuf[*idx].userName, strlen(historyBuf[*idx].userName) - strlen(USER_NOEXIST) - strlen("..."));
+                    strcat(filenameBuf, "...");
+                    strcat(filenameBuf, USER_NOEXIST);
+                    strcpy(historyBuf[*idx].userName, filenameBuf);
+                } else { // Add "(NoExist)" String at the tail of username.
+                    strcat(historyBuf[*idx].userName, USER_NOEXIST);
+                }
+            }
+
+            if (strstr(pathBuf, BTMP_NAME) == NULL) {
+                historyBuf[*idx].status = LOGIN_SUCCESS; // Set status (Login Success: wtmp)
+            } else {
+                historyBuf[*idx].status = LOGIN_FAILED; // Set status (Login Failed: btmp)
+            }
+
+            strncpy(historyBuf[*idx].deviceName, utBuf.ut_line, UT_LINESIZE); // Copy connection method
+
+            if (STRN_CMP_EQUAL(historyBuf[*idx].deviceName, "tty")) { // If login through Console (Local)
+                strncpy(historyBuf[*idx].loginIP, IP_LOCAL_STR, UT_LINESIZE);
+            } else if ((STRN_CMP_EQUAL(historyBuf[*idx].deviceName, "pts")) || (STRN_CMP_EQUAL(historyBuf[*idx].deviceName, "ssh"))) { // If login through SSH (Remote)
+                strncpy(historyBuf[*idx].loginIP, utBuf.ut_host, UT_LINESIZE);
+            } else { // If login through other method
+                strncpy(historyBuf[*idx].loginIP, IP_OTHER_STR, UT_LINESIZE);
+            }
+
+            loginTime = utBuf.ut_time; // Login Time
+            tm = localtime(&loginTime);
+
+            if ((tm->tm_year + 1900) < 1970) { // Invalid date
+                (*idx)++;
+                continue;
+            }
+
+            historyBuf[*idx].logDate.year = (short)((tm->tm_year) + 1900);
+            historyBuf[*idx].logDate.month = (short)((tm->tm_mon) + 1);
+            historyBuf[*idx].logDate.day = (short)(tm->tm_mday);
+            historyBuf[*idx].logDate.hrs = (short)(tm->tm_hour);
+            historyBuf[*idx].logDate.min = (short)(tm->tm_min);
+            historyBuf[*idx].logDate.sec = (short)(tm->tm_sec);
+
+            (*idx)++;
+        }
+        close(fd);
+    }
+    pclose(ls_ptr);
+    return 0;
+}
+
+int compare_Date(const void* element1, const void* element2) { // Compare two date. (Criteria: Ascending Order)
+    // If this function returns a positive number, qsort function is change two element.
+    int val;
+    const LoginInfo* tmpBuf1 = (LoginInfo*)element1;
+    const LoginInfo* tmpBuf2 = (LoginInfo*)element2;
+    const DateInfo* date1 = &(tmpBuf1->logDate);
+    const DateInfo* date2 = &(tmpBuf2->logDate);
+    
+    if ((val = (date1->year - date2->year)) == 0) { // Compare year. Difference of two date is Same or date1 is ahead of date2
+        if ((val = (date1->month - date2->month)) == 0) { // Compare month.
+            if ((val = (date1->day - date2->day)) == 0) { // Compare day.
+                if ((val = (date1->hrs - date2->hrs)) == 0) { // Compare hours.
+                    if ((val = (date1->min - date2->min)) == 0) { // Compare minutes.
+                        if ((val = (date1->sec - date2->sec)) == 0) { // Compare seconds.
+                            return val;
+                        }
+                    }
+                }       
+            }
+        }
+    }
+    return val;
+}
+
+// int remove_History() { // Remove displayed history
+
+// }
+
+/* List of functions of using to check file permissions */
 int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file permissions
     FILE* history_fp = NULL;
     char errorBuf[ERROR_MSG_LEN * 2], pathBuf[BUF_MAX_LINE], userBuf[USERNAME_LEN], groupBuf[GRPNAME_LEN], logPath[MAX_MOUNTPATH_LEN];
@@ -61,8 +305,8 @@ int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file perm
         (*fileInfo)[i].changed[2] = 0;
         for (int j = 0; j < 2; j++) {
             (*fileInfo)[i].changed[j] = 0;
-            (*fileInfo)[i].ownerUID[j] = -100;
-            (*fileInfo)[i].groupGID[j] = -100;
+            (*fileInfo)[i].ownerUID[j] = 0;
+            (*fileInfo)[i].groupGID[j] = 0;
         }
     }
 
@@ -225,7 +469,7 @@ void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp) { // Write stat informa
     }
 }
 
-/* List of functions that get Linux user information*/
+/* List of functions of using to get Linux user information*/
 int get_UserList(UserInfo** userlist, int* userCnt) { // Get User List. return the number of users.
     struct passwd *userBuf;
     uid_t UID_MIN, UID_MAX;
@@ -238,7 +482,7 @@ int get_UserList(UserInfo** userlist, int* userCnt) { // Get User List. return t
     setpwent(); // Move pointer of /etc/passwd to head.
 
     while ((userBuf = getpwent()) != NULL) { // Get the number of users
-        if ((strcmp(userBuf->pw_name, "root") == 0) || ((userBuf->pw_uid >= 1000) && (strcmp(userBuf->pw_name, "nobody") != 0))) {
+        if ((strcmp(userBuf->pw_name, "root") == 0) || (((userBuf->pw_uid >= UID_MIN) && (userBuf->pw_uid <= UID_MAX)) && (strcmp(userBuf->pw_name, "nobody") != 0))) {
             (*userCnt)++;
         }
     }
@@ -449,7 +693,7 @@ int get_Date_Interval(const DateInfo* targetDate) { // Get date interval (Target
     return difftime(nowTime, targetTime) / (60 * 60 * 24); // Get differenc of two date (Unit: days)
 }
 
-/* List of functions that get network interface information (from /proc/net/dev) */
+/* List of functions of using to get network interface information (from /proc/net/dev) */
 int get_IFA_Speed(DockerInfo** containerInfo, IFASpeed** ifa, short* ifaCount, int* containerCnt){ // Get receive and transmit speed of network interfaces.
     FILE *fp = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' };
@@ -823,17 +1067,13 @@ void sort_Docker_Network(IFASpeed* ifaBuf, int ifaCount) { // Sorting ifa_name o
         }
     }
 
-    printf("%d %d\n", docker_start_idx, same_IFA_Cnt);
-
     for (int i = bridge_start_idx; i < same_IFA_Cnt + bridge_start_idx - 1; i++) {
         for (int j = i + 1; j < same_IFA_Cnt + bridge_start_idx; j++) {
-            printf("%d %s %d %s\n", i, ifaBuf[i].ipv4_addr, j, ifaBuf[j].ipv4_addr);
             if (compare_IPv4(ifaBuf[i].ipv4_addr, ifaBuf[j].ipv4_addr) > 0) {
                 tmpBuf = ifaBuf[i];
                 ifaBuf[i] = ifaBuf[j];
                 ifaBuf[j] = tmpBuf;
             }
-            printf("%d %s %d %s\n\n", i, ifaBuf[i].ipv4_addr, j, ifaBuf[j].ipv4_addr);
         }
     }
 
@@ -870,7 +1110,7 @@ int compare_IPv4 (const char* str1, const char* str2) { // Compare the order of 
     return strcmp(str1Buf, str2Buf);
 }
 
-/* List of functions that get partition information (from /proc/diskstats, /proc/mounts) */
+/* List of functions of using to get partition information (from /proc/diskstats, /proc/mounts) */
 void get_Partition_IO_Speed(int partitionCnt, int idx, const char* fileSystem, float* readSpeed, float* writeSpeed){ // Get speed of Partition's Read/Write Speed
     FILE *fp = NULL;
     size_t read = 0, write = 0, sector_size = 0;
