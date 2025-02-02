@@ -15,7 +15,7 @@ int compare_Date(const void* element1, const void* element2);
 int get_File_Information(FileInfo** fileList, int* fileCnt);
 int copy_FilePath(char* targetFilePath, char* destination);
 void change_File_Stat(FileInfo* fileBuf);
-void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp);
+void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp, int* notNeedCnt, int* needCnt, int* failedCnt);
 
 /* List of functions that get Linux user information*/
 int get_UserList(UserInfo** userlist, int* userCnt);

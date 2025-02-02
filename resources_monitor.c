@@ -13,12 +13,14 @@
 extern const DateInfo dateBuf;
 
 int main(void){
-    ProcessInfo* psBuf = NULL;
-    int cnt = 10;
+    WarningLog* warningList = NULL;
+    int cnt = 0;
     get_Date();
-    get_Process_Status(&psBuf, cnt);
+    get_Warning_History_from_Log(&warningList, &cnt);
     for (int i = 0; i < cnt; i++) {
-        printf("%s %d %4.1f %4.1f %ld  %s  %s  %s  %s\n",
-        psBuf[i].userName, psBuf[i].pid, psBuf[i].cpu, psBuf[i].mem, psBuf[i].memUseSize, psBuf[i].tty, psBuf[i].start, psBuf[i].time, psBuf[i].command);
+        printf("%d %04hd-%02hd-%02hd %02hd:%02hd:%02hd\n",
+        i + 1, warningList[i].date.year, warningList[i].date.month, warningList[i].date.day, warningList[i].date.hrs, warningList[i].date.min, warningList[i].date.sec);
     }
+
+    printf("%d\n", remove_History_Log(LOG_TYPE_WARNING));
 }

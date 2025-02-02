@@ -230,10 +230,10 @@
 #define WTMP_LOCATION "/var/log/wtmp"
 //Linux Users Login
 #define BTMP_WTMP_FILENAME_LEN 16
-#define BTMP_WTMP_LOCATION "/var/log/"
+#define BTMP_WTMP_LOCATION "/var/log"
 #define BTMP_NAME "btmp"
 #define WTMP_NAME "wtmp"
-#define TMP_LOCATION_FORM "%s%s"
+#define TMP_LOCATION_FORM "%s/%s"
 #define USER_NOEXIST "(NoExist)"
 #define GET_TMPLOG_LIST "ls -al %s | awk \'{print $9}\' | grep -E \"^%s*|^%s*\""
 #define LOGIN_SUCCESS 1
@@ -265,6 +265,8 @@
 #define TIME_LEN 10
 
 /* Warning Log */
+#define GET_LOG_SIZE "ls -al %s | grep %s | awk \'{print $5}\'"
+#define GET_LOG_LIST "ls -al %s | grep %s | awk \'{print $9}\'"
 #define TYPE_MEM_USAGE 1
 #define TYPE_CPU_USAGE 2
 #define TYPE_CPU_TEMP 3
@@ -275,11 +277,15 @@
 #define TYPE_EXHAUST_TEMP 8
 #define TYPE_INLET_TEMP 9
 #define WARNING_LOG "warning_history"
+#define INFO_LOG "-E \"temperature*|usage*\""
+#define WARNING_LOG_FORM_LEN 32
 
-/* Information to Log */
+/* Log file */
 #define ERROR_LOG_COLLECTOR "/var/log/00_Server_Monitoring/collector_log"
 #define HISTORY_PATH "/var/log/00_Server_Monitoring/00_history" // 40
 #define LOG_PATH "/var/log/00_Server_Monitoring"
+#define LOG_TYPE_WARNING 0
+#define LOG_TYPE_INFO 1
 #define USERNAME_LEN 33
 
 /* Information to Log - Temperature */

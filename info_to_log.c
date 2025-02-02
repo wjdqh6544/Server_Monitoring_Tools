@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-extern DateInfo dateBuf;
+extern const DateInfo dateBuf;
 
 void* write_Temperature_to_Log(){ // Write temperature information to Log file.
     int fd = -1;

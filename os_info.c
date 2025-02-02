@@ -81,7 +81,6 @@ int get_Process_Status(ProcessInfo** psBuf, int lineCnt) { // Get process status
 int get_Login_History(LoginInfo** historyBuf, int* historyCnt) { // Get the history of login (Success, Failed)
     int idx = 0, btmpErr, wtmpErr;
     char commBuf[BUF_MAX_LINE];
-    (void)historyBuf;
     *historyCnt = get_LineCnt_TMP_History();
 
     if ((*historyCnt) == -100) {
@@ -266,10 +265,6 @@ int compare_Date(const void* element1, const void* element2) { // Compare two da
     return val;
 }
 
-// int remove_History() { // Remove displayed history
-
-// }
-
 /* List of functions of using to check file permissions */
 int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file permissions
     FILE* history_fp = NULL;
@@ -277,7 +272,7 @@ int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file perm
     struct stat statBuf;
     struct passwd *pw = NULL;
     struct group *grp = NULL;
-    int notFount = 0;
+    int notFount = 0, notNeedCnt = 0, needCnt = 0, failedCnt = 0;
     *fileCnt = sizeof(targetFile) / sizeof(targetFile[0]);
 
     for (int i = 0; i < *fileCnt; i++) {
@@ -317,7 +312,7 @@ int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file perm
     }
     fprintf(history_fp, "-------------------------------------------------------------------------\n");
 
-    for (int i = 0; i < *fileCnt; i++) {
+    for (int i = 0; i < *fileCnt; i++) { // Copy stat information to array
         sscanf(targetFile[i], "%s %s %s %o", (*fileInfo)[i].fullPath, userBuf, groupBuf, &((*fileInfo)[i].permission[1]));
         
         if (access((*fileInfo)[i].fullPath, F_OK) != 0) {
@@ -358,9 +353,13 @@ int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file perm
         (*fileInfo)[i].changed[1] =  (((*fileInfo)[i].groupGID[0] == (*fileInfo)[i].groupGID[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
         (*fileInfo)[i].changed[2] =  (((*fileInfo)[i].permission[0] == (*fileInfo)[i].permission[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
 
-        change_File_Stat(&(*fileInfo)[i]);
-        write_Stat_Change_Log(&(*fileInfo)[i], &history_fp);
+        change_File_Stat(&(*fileInfo)[i]); // Edit wrong stat information
+        write_Stat_Change_Log(&(*fileInfo)[i], &history_fp, &notNeedCnt, &needCnt, &failedCnt); // 
     }
+
+    fprintf(history_fp, "-------------------------------------------------------------------------\n");
+    fprintf(history_fp, "The number of (Total file: %d | not Modified: %d | Modified Successfully: %d | Failed to modify: %d)\n\n", 
+            (notNeedCnt + needCnt + failedCnt), notNeedCnt, needCnt, failedCnt);
 
     fclose(history_fp);
     return 0;
@@ -429,7 +428,7 @@ void change_File_Stat(FileInfo* fileBuf) { // Change file permissions, onwership
     }
 }
 
-void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp) { // Write stat information Log
+void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp, int* notNeedCnt, int* needCnt, int* failedCnt) { // Write stat information Log
     fprintf(*fp, "%02hd:%02hd:%02hd %s | UID: ", dateBuf.hrs, dateBuf.min, dateBuf.sec, fileBuf->fullPath);
 
     switch (fileBuf->changed[0]) { // UID
@@ -466,6 +465,14 @@ void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp) { // Write stat informa
         case FAILED_CHANGING:
             fprintf(*fp, "%s (%03o -> %03o)\n", FAILED_CHANGING_STR, fileBuf->permission[0], fileBuf->permission[1]);
             break;
+    }
+
+    if ((fileBuf->changed[0] == FAILED_CHANGING) || (fileBuf->changed[1] == FAILED_CHANGING) || (fileBuf->changed[2] == FAILED_CHANGING)) { // If a file that failed to modify exists
+        (*failedCnt)++;
+    } else if ((fileBuf->changed[0] == NOT_NEED_CHANGING) && (fileBuf->changed[1] == NOT_NEED_CHANGING) && (fileBuf->changed[2] == NOT_NEED_CHANGING)) { // If a file not need to be modified
+        (*notNeedCnt)++;
+    } else { // In the rest of the case. (The properties that need to be modified exist, but There are no properties that failed to modify.)
+        (*needCnt)++;
     }
 }
 

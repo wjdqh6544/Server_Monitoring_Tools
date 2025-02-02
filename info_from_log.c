@@ -2,14 +2,109 @@
 #include "info_from_log.h"
 #include "zz_struct.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 
-extern DateInfo dateBuf;
+extern const DateInfo dateBuf;
 
-// int get_Warning_History_from_Log(){ // Get Warning History
+int remove_History_Log(int type){ // Remove log file
+    FILE* ls_ptr = NULL;
+    DateInfo preserveDate[2]; // [0]: Yesterday's Date, [1]: Date 2 days ago
+    char pathBuf[BUF_MAX_LINE] = { '\0' }, errorBuf[BUF_MAX_LINE] = { '\0' }, filenameBuf[WARNING_LOG_FORM_LEN] = { '\0' }, dateStr[3][9]; // [0]: today, [1]: yesterday, [2]: 2 days ago
+    int res = 0;
 
-// }
+    if (type == LOG_TYPE_WARNING) { // Remove warning log
+        sprintf(pathBuf, GET_LOG_LIST, HISTORY_PATH, WARNING_LOG); // Get list of warning logs
+    } else { // Remove information (Temperature, Usage) log
+        sprintf(pathBuf, GET_LOG_LIST, HISTORY_PATH, INFO_LOG);
+    }
+
+    if ((ls_ptr = popen(pathBuf, "r")) == NULL) {
+        strcpy(errorBuf, "popen() - ");
+        strcat(errorBuf, pathBuf);
+        exception(-2, "remove_All_Warning_History_File", errorBuf);
+        return -100;
+    }
+
+    while(fscanf(ls_ptr, "%s", filenameBuf) != EOF) {
+        if (type == LOG_TYPE_INFO) { // // Remove Information Log
+            get_Before_day(preserveDate, NULL);
+            get_Before_day(preserveDate + 1, preserveDate);
+            sprintf(dateStr[0], "%04d%02d%02d", dateBuf.year, dateBuf.month, dateBuf.day);
+            sprintf(dateStr[1], "%04d%02d%02d", preserveDate->year, preserveDate->month, preserveDate->day);
+            sprintf(dateStr[2], "%04d%02d%02d", (preserveDate + 1)->year, (preserveDate + 1)->month, (preserveDate + 1)->day);
+            if ((strstr(filenameBuf, dateStr[0]) != NULL) || (strstr(filenameBuf, dateStr[1]) != NULL) || (strstr(filenameBuf, dateStr[2]) != NULL))  { 
+                // Date of today, yesterday or 2 days ago -> Skip. (Not remove)
+                continue;
+            }
+        }
+        sprintf(pathBuf, TMP_LOCATION_FORM, HISTORY_PATH, filenameBuf); // Get absolute path of a log file.
+        if (remove(pathBuf) != 0) {
+            exception(-4, "remove_All_Warning_History_File", pathBuf);
+            res = -1;
+            continue;
+        }
+    }
+
+    return res;
+}
+
+int get_Warning_History_from_Log(WarningLog** warningList, int* warningCnt){ // Get Warning History
+    FILE* ls_ptr = NULL;
+    int idx = 0, fd = -1;
+    char errorBuf[BUF_MAX_LINE] = { '\0' }, pathBuf[BUF_MAX_LINE] = { '\0' }, filenameBuf[WARNING_LOG_FORM_LEN] = { '\0' }, commandBuf[BUF_MAX_LINE] = { '\0' };
+    
+    *warningCnt = get_WarningLog_Line_Cnt();
+
+    if (*warningList == NULL) {
+        if ((*warningList = (WarningLog*)malloc((*warningCnt) * sizeof(WarningLog))) == NULL) {
+            exception(-4, "get_Warning_History_from_Log", "malloc() - warningList");
+            return -100;
+        }
+    }
+
+    sprintf(commandBuf, GET_LOG_LIST, HISTORY_PATH, WARNING_LOG);
+    if ((ls_ptr = popen(commandBuf, "r")) == NULL) { // Get List of btmp
+        strcpy(errorBuf, "popen() - (for fileList) %s");
+        strcat(errorBuf, commandBuf);
+        exception(-2, "get_Warning_History_from_Log", errorBuf);
+        return -100;
+    }
+    
+    for (idx = 0; idx < *warningCnt; idx++) { // ls_ptr -> list of btmp filename 
+        fscanf(ls_ptr, "%s", filenameBuf); // Get filename in the list.
+        sprintf(pathBuf, TMP_LOCATION_FORM, HISTORY_PATH, filenameBuf);
+        if ((fd = open(pathBuf, O_RDONLY)) == -1 ) { // Open target Warning file.
+            exception(-1, "get_Warning_History_from_Log", pathBuf);
+            return -100;
+        }
+        
+        while(read(fd, &((*warningList)[idx++]), sizeof(WarningLog)) == sizeof(WarningLog));
+    }
+    return 0;
+}
+
+int get_WarningLog_Line_Cnt(){ // Get the number of Warning history 
+    FILE* ls_ptr = NULL;
+    char pathBuf[BUF_MAX_LINE] = { '\0' }, errorBuf[BUF_MAX_LINE] = { '\0' };
+    size_t bytes = 0, sumBytes = 0;
+
+    sprintf(pathBuf, GET_LOG_SIZE, HISTORY_PATH, WARNING_LOG); // Get list of warning logs
+    if ((ls_ptr = popen(pathBuf, "r")) == NULL) {
+        strcpy(errorBuf, "popen() - ");
+        strcat(errorBuf, pathBuf);
+        exception(-2, "get_WarningLog_Line_Cnt", errorBuf);
+        return -100;
+    }
+
+    for (int i = 0; fscanf(ls_ptr, "%ld", &bytes) != EOF; i++) { // Get size of each logfile, and Calculate accumulated sum.
+        sumBytes += bytes;
+    }
+
+    return sumBytes / sizeof(WarningLog); // Calculate the number of history log content.
+}
 
 int get_Memory_Usage_from_Log(MemUsage* memBuf){ // Get Memory (Physical, SWAP) Usage (Capacity) from log file.
     int fd = -1;
@@ -70,7 +165,7 @@ int get_Average_Usage_Percent_from_Log(float* avg_usage_buf, int inputInterval, 
             close(fd); // Close current opened file descriptor.
             
             dateTmp = dateBuf;
-            get_Before_day(&dateTmp);
+            get_Before_day(&dateTmp, NULL);
             get_Filename(fullpath, HISTORY_PATH, USAGE_LOG, &dateTmp); // Get full path of target file (before day)
             
             if ((fd = open(fullpath, O_RDONLY)) == -1){ // Open before day file.
@@ -154,7 +249,7 @@ int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int
             close(fd); // Close current opened file descriptor.
             
             dateTmp = dateBuf;
-            get_Before_day(&dateTmp);
+            get_Before_day(&dateTmp, NULL);
             get_Filename(fullpath, HISTORY_PATH, TEMP_LOG, &dateTmp); // Get full path of target file (before day)
             
             if ((fd = open(fullpath, O_RDONLY)) == -1){ // Open before day file.
@@ -248,11 +343,20 @@ int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int
     return 0;
 }
 
-void get_Before_day(DateInfo* buf){ // Get before day.
+void get_Before_day(DateInfo* buf, const DateInfo* pointDate){ // Get before day.
+    // buf: Pointer that store the date, pointDate: Baseline date, Nullable.
+    // If pointDate is null, Calculate with base of today.
     int daysInMonth[] = { 31, (dateBuf.year % 4 == 0 && dateBuf.year % 100 != 0) || dateBuf.year % 400 == 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-    buf->year = dateBuf.year;
-    buf->month = dateBuf.month;
-    buf->day = dateBuf.day - 1;
+    DateInfo baseline;
+    baseline = ((pointDate == NULL) ? dateBuf : (*pointDate));
+    
+    buf->year = baseline.year;
+    buf->month = baseline.month;
+    buf->day = baseline.day - 1;
+    buf->hrs = baseline.hrs;
+    buf->min = baseline.min;
+    buf->sec = baseline.sec;
+
     if (buf->day < 1) { // If first day.
         buf->month -= 1;
         if (buf->month < 1) { // If first month.
