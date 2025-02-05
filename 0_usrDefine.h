@@ -4,6 +4,7 @@
 #define STR_INIT(x) strcpy(x, NA_STR)
 #define STRN_CMP_EQUAL(x,y) (strlen(x) >= strlen(y)) && (strncmp(x, y, strlen(y)) == 0)
 #define CHECK_EXIST_USER(x) (strstr(x, USER_NOEXIST) == NULL)
+#define SWAP(a, b, tmp) {tmp = a; a = b; b = tmp;}
 
 /* User custom */
 #define UNIT_COUNT 6 // Number of UNIT element. (Enumerate type, in zz_struct.h)
@@ -16,6 +17,7 @@
 
 /* Critical Point */
 #define BBU_CAPACITY_CRITICAL_POINT 200
+#define BBU_TEMP_CRITICAL_POINT 45
 #define CPU_TEMP_CRITICAL_POINT 65
 #define CPU_USAGE_CRITICAL_PERCENT 85
 #define DISK_USAGE_CRITICAL_PERCENT 90
@@ -27,13 +29,92 @@
 #define STORAGE_TEMP_CRITICAL_POINT 60
 #define SWAP_USAGE_CRITICAL_PERCENT 0
 
+/* server_monitoring_tools.c / os_monitor.c / resources_monitor.c */
+#define BLACK_TEXT_WHITE_BACKGROUND 1
+#define CENTER_OFFSET 7
+#define MAGENTA_TEXT 2
+#define GREEN_TEXT 3
+#define DATE_TIME_FORM "%04d-%02d-%02d %02d:%02d:%02d"
+#define DATE_FORM "%04d-%02d-%02d"
+#define DATE_LEN 10
+#define DATE_TIME_LEN 24
+#define DDAY_LEN 9
+#define DISK_EN_SLT_TITLE "EN:SLT"
+#define DISK_DG_TITLE "DG"
+#define DISK_DEV_ID_TITLE "DevID"
+#define DISK_MODELNAME_TITIE "Model Name"
+#define DISK_CAPACITY_TITLE "Capacity"
+#define DISK_MEDIATYPE_TITLE "MT"
+#define DISK_INTERFACE_TITLE "IF"
+#define DISK_STATUS_TITLE "Status"
+#define DISK_MAPPED_PARTITION_TITLE "Mapped Partition"
+#define DISK_STATE_ONLINE_FULLSTR "Online"
+#define DISK_STATE_OFFLINE_FULLSTR "Offline"
+#define DISK_STATE_GHS_FULLSTR "Global HotSpare"
+#define DISK_STATE_DHS_FULLSTR "Dedicated HotSpare"
+#define DISK_STATE_UGOOD_FULLSTR "Unconfigured Good"
+#define DISK_STATE_UBAD_FULLSTR "Unconfigured Bad"
+#define DISK_STATE_SANI_FULLSTR "Sanitize"
+#define MAX_MENU_ITEMS 10
+#define MAIN_TITLE "Server Monitoring Tools - Main"
+#define SUBTITLE "KNU CSE Student-Council | Server Monitoring Tools"
+#define DEPARTMENT "KNU-CSE Student-Council"
+#define TYPE_USERNAME 0
+#define TYPE_LOGIN_IP 1
+#define TYPE_DEVICENAME 2
+#define TYPE_FILENAME 3
+#define TYPE_UID 4
+#define TYPE_GID 5
+#define TYPE_LOGIN_DATE 6
+#define TYPE_PW_CHANGE_DATE 7
+#define TYPE_NICS_LOGICAL_NAME 8
+#define TYPE_NICS_PHYSICAL_NAME 9
+#define TYPE_NICS_STATUS 10
+#define TYPE_NICS_CONNECT_STR "Connected"
+#define TYPE_NICS_DISCONNECT_STR "Disconnected"
+#define TYPE_DISK_NAME 11
+#define TYPE_DISK_CAPACITY 12
+#define TYPE_DISK_MEDIATYPE 13
+#define TYPE_DISK_INTERFACE 14
+#define TYPE_DISK_STATUS 15
+#define TYPE_PARTITION_FILESYSTEM 16
+#define TYPE_PARTITION_FILESYSTEM_STR "FileSystem"
+#define TYPE_PARTITION_MOUNTPATH 17
+#define TYPE_PARTITION_MOUNTPATH_STR "MountPath"
+#define TYPE_PROCESS_USERNAME 18
+#define TYPE_PROCESS_USERNAME_STR "UserName"
+#define TYPE_PROCESS_TTY 19
+#define TYPE_PROCESS_TTY_STR "TTY"
+#define TYPE_PROCESS_START 20
+#define TYPE_PROCESS_START_STR "Start"
+#define TYPE_PROCESS_TIME 21
+#define TYPE_PROCESS_TIME_STR "Time"
+#define UPDATED_FAILED_LEN 22
+#define NOT_NEED_LEN 4
+#define NOT_NEED_TO_CHANGE_FORM "OK            "
+#define CHANGE_SUCCESS_FORM "Updated(%d->%d)"
+#define CHANGE_FAILED_FORM "Failed(%d->%d)"
+#define CHANGE_FAILED_NOT_EXIST_FORM "Failed(InputERR)"
+#define CHANGE_SUCCESS_FORM_PERM "Updated(%03o->%03o)"
+#define CHANGE_FAILED_FORM_PERM "Failed(%03o->%03o)"
+#define NICS_LOGICAL_IFA_TITLE "Logical IFA"
+#define NICS_PHYSICAL_IFA_TITLE "Physical IFA"
+#define NICS_STATUS_TITLE "Connection Status"
+#define NICS_LINK_SPEED_TITLE "Link Speed"
+#define NICS_LINK_SPEED_NOT_AVAILABLE "[Not Available]"
+
 /* common */
 #define COMMAND_MAX_LINE 512
 #define CHECK_OMREPORT "/opt/dell/srvadmin/bin/omreport 2>&1"
 #define CHECK_PERCCLI "/opt/MegaRAID/perccli/perccli64 2>&1"
+#define GET_EXTERNAL_IPV4_ADDR "curl ifconfig.net --fail --silent --show-error"
+#define GET_HOSTNAME_PATH "/etc/hostname"
+#define ERROR_LOG_COLLECTOR "/var/log/00_Server_Monitoring/collector_log"
+#define ERROR_LOG_MONITOR "/var/log/00_Server_Monitoring/monitoring_tools_log"
 #define ERROR_LOG_MAIN "/var/log/00_Server_Monitoring/main_program_log"
 #define ERROR_MSG_LEN 256
 #define NA_STR "N/A"
+#define NA_LEN 7
 #define MAX_PARTS_NAME_LEN 64
 #define INFO_CMOS_BATTERY_GOOD "Good"
 #define INFO_CPU_PROCESSOR_NAME "Processor Brand"
@@ -70,8 +151,12 @@
 #define INFO_SERVER_MODEL "Chassis Model"
 #define INFO_SERVICE_TAG "Chassis Service Tag"
 #define INFO_SERVICE_CODE "Express Service Code"
+#define TYPE_COLLECTOR 0
+#define TYPE_MONITOR 1
 #define TYPE_NICS_DISCONNECT 0
 #define TYPE_NICS_CONNECT 1
+#define TYPE_CHECK_OMREPORT 0
+#define TYPE_CHECK_PERCCLI 1
 #define TYPE_STATUS_OK 1
 #define TYPE_STATUS_UNKNOWN -100
 #define TYPE_STATUS_CRITICAL 0
@@ -210,10 +295,11 @@
 #define MAX_DOCKER_CONTAINER_NAME_LEN 128
 // File Permissions
 #define GRPNAME_LEN 32
-#define MAX_PATH_LEN 32
+#define MAX_PATH_LEN 48
 #define STAT_HISTORY_LOG "stat_history"
 #define STATUS_LEN 8
 #define FAILED_CHANGING -1
+#define FAILED_CHANGING_INVALID -2
 #define FAILED_CHANGING_STR "Failed"
 #define NEED_CHANGING 1
 #define NEED_CHANGING_STR "Updated"
@@ -236,10 +322,10 @@
 #define TMP_LOCATION_FORM "%s/%s"
 #define USER_NOEXIST "(NoExist)"
 #define GET_TMPLOG_LIST "ls -al %s | awk \'{print $9}\' | grep -E \"^%s*|^%s*\""
-#define LOGIN_SUCCESS 1
-#define LOGIN_SUCCESS_STR "SUCCESS"
-#define LOGIN_FAILED 0
-#define LOGIN_FAILED_STR "FAILED"
+#define TYPE_LOGIN_SUCCESS 1
+#define TYPE_LOGIN_SUCCESS_STR "SUCCESS"
+#define TYPE_LOGIN_FAILED 0
+#define TYPE_LOGIN_FAILED_STR "FAILED"
 #define IP_LOCAL_STR "Local / Console"
 #define IP_OTHER_STR "Other Methods"
 // Networks Interface
@@ -258,7 +344,7 @@
 #define GET_SECTOR_SIZE "/sys/block/%s/queue/hw_sector_size"
 #define DM_PATH "dm-"
 // Process Status (ps)
-#define GET_PS_COMMAND "ps -aux --sort=-%mem"
+#define GET_PS_COMMAND "ps -aux --sort=-%cpu"
 #define GET_PS_INFO_FORM "%s %d %f %f %*s %ld %s %*s %s %s %[^\n]s"
 #define TTY_BACKGROUND "?"
 #define TTY_BACKGROUND_STR "<BG>"
@@ -276,12 +362,12 @@
 #define TYPE_BBU_TEMP 7
 #define TYPE_EXHAUST_TEMP 8
 #define TYPE_INLET_TEMP 9
+#define TYPE_NOT_AVG 10
 #define WARNING_LOG "warning_history"
 #define INFO_LOG "-E \"temperature*|usage*\""
 #define WARNING_LOG_FORM_LEN 32
 
 /* Log file */
-#define ERROR_LOG_COLLECTOR "/var/log/00_Server_Monitoring/collector_log"
 #define HISTORY_PATH "/var/log/00_Server_Monitoring/00_history" // 40
 #define LOG_PATH "/var/log/00_Server_Monitoring"
 #define LOG_TYPE_WARNING 0

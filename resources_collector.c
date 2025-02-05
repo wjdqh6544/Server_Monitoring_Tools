@@ -1,25 +1,19 @@
-#include "0_usrDefine.h"
 #include "common.h"
 #include "info_to_log.h"
-#include "zz_struct.h"
-#include <fcntl.h>
-#include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <pthread.h>
 
 extern const DateInfo dateBuf;
+extern FILE* log_ptr;
 
 void signal_handler(int sig);
-void check_before_running(char* username);
 void run_as_background();
-void IO_Redirection();
 void* refresh_now_Date();
-int main(void){
+int main(void) {
     struct sigaction sa;
     pthread_t date, temp, usage, warning;
     char username[USERNAME_LEN] = { '\0' };
@@ -32,11 +26,11 @@ int main(void){
 
     check_before_running(username);
     run_as_background();
-    IO_Redirection();
+    IO_Redirection(TYPE_COLLECTOR);
 
     get_Date();
 
-    printf("[INFO] %04d%02d%02d %02d:%02d:%02d %s: Collector program started.\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec, username);
+    fprintf(stderr, "[INFO] %04d-%02d-%02d %02d:%02d:%02d %s: Collector program started.\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec, username);
 
     pthread_create(&date, NULL, refresh_now_Date, NULL);
     pthread_create(&temp, NULL, write_Temperature_to_Log, NULL);
@@ -51,63 +45,17 @@ int main(void){
     return 0;
 }
 
-void signal_handler(int sig){
+void signal_handler(int sig) {
     if (sig == SIGTERM){
-        printf("[INFO] %04d%02d%02d %02d:%02d:%02d Collector program stopped. (kill command)\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec);
+        printf("[INFO] %04d-%02d-%02d %02d:%02d:%02d Collector program stopped. (kill command)\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec);
     } else if (sig == SIGKILL){
-        printf("[INFO] %04d%02d%02d %02d:%02d:%02d Collector program stopped. (System shutdown)\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec);
+        printf("[INFO] %04d-%02d-%02d %02d:%02d:%02d Collector program stopped. (System shutdown)\n", dateBuf.year, dateBuf.month, dateBuf.day, dateBuf.hrs, dateBuf.min, dateBuf.sec);
     }
+    fclose(log_ptr);
     exit(1);
 }
 
-void check_before_running(char* username){
-    int code = 0;
-
-    if (geteuid() != 0) { // Check the program is run with root privileges.
-        printf("\nThis program must be running with root privileges. (using sudo or as root)...\n\nexit.\n\n");
-        exit(-1);
-    }
-
-    code = check_Package_Installed("omreport"); // Check whether "omreport" package is installed.
-    switch (code) {
-        case -1:
-            printf("\nCheck_Package_Installed - Invalid Parameter.\n\n");
-            exit(-1);
-        case -100:
-            printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
-            exit(-1);
-        case 0:
-            printf("\n- OMSA (OpenManage Server Administrator) is not installed..");
-            printf("\n- Please install OMSA. (Package Name: OM-SrvAdmin-Dell-Web-LX)");
-            printf("\n- To download rpm package, please visit DELL Website.\n\nexit.\n\n");
-            exit(-1);
-    }
-
-    code = check_Package_Installed("perccli"); // Check whether "perccli" package is installed.
-    switch (code) {
-        case -1:
-            printf("\nCheck_Package_Installed - Invalid Parameter.\n\n");
-            exit(-1);
-        case -100:
-            printf("\nSystem Call(popen) invoking ERROR... \nexit.\n\n");
-            exit(-1);
-        case 0:
-            printf("\n- PERCCLI(PERC controller CLI utility) is not installed..");
-            printf("\n- Please install Perccli. (Package Name: Perccli)");
-            printf("\n- To download rpm package, please visit DELL Website.");
-            printf("\n- This program uses perccli64. If the system is 32bit, Edit define macro. (Is in 0_usrDefine.h)\n\nexit.\n\n");
-            exit(-1);
-    }
-
-    if (check_Log_Directory(HISTORY_PATH, 0750) == -1){ // Check the presense of "/var/log/00_Server_Monitoring/00_history" directory. (History file is saved to this.)
-        printf("\nCannot create Log destination directory. (%s).\nexit.\n\n", HISTORY_PATH);
-        exit(-1);
-    }
-
-    strcpy(username, getpwuid(atoi(getenv("SUDO_UID")))->pw_name); // Get a username that run this (background collector) program.
-}
-
-void run_as_background(){
+void run_as_background() {
     pid_t pid;
 
     if ((pid = fork()) < 0) { // Create child process
@@ -137,37 +85,7 @@ void run_as_background(){
     umask(0); // Remove default permissions of files that are created this process. -> When create a file, must be set the permission
 }
 
-void IO_Redirection(){
-    int fd = -1;
-
-    fflush(stdout);
-    fflush(stderr);
-
-    fd = open("/dev/null", O_RDONLY);
-    if (dup2(fd, STDIN_FILENO) == -1){ // Close (disable) stdin
-        printf("\nSystem Call(dup2 - stdin) invoking ERROR... \nexit.");
-        exit(-1);
-    }
-    close(fd);
-
-    fd = open(ERROR_LOG_COLLECTOR, O_WRONLY | O_CREAT | O_APPEND, 0640);
-    if (dup2(fd, STDOUT_FILENO) == -1) { // Redirect stdout to file
-        printf("\nSystem Call(dup2 - stdout) invoking ERROR... \nexit.");
-        exit(-1);
-    }
-
-    if (dup2(fd, STDERR_FILENO) == -1){ // Redirect stderr to file
-        printf("\nSystem Call(dup2 - stderr) invoking ERROR... \nexit.");
-        exit(-1);
-    }
-
-    close(fd);
-
-    setvbuf(stdout, NULL, _IOLBF, 0); // Set buffering mode (Line buffering)
-    setvbuf(stderr, NULL, _IOLBF, 0);
-}
-
-void* refresh_now_Date(){
+void* refresh_now_Date() {
     while(1){
         get_Date();
         sleep(1);

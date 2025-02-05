@@ -7,6 +7,12 @@
 #include <utmp.h>
 #include <pwd.h>
 
+/* Main-Program */
+typedef struct MenuItem { // Main Menu
+    const char* menuStr;
+    void(*function)();
+} MenuItem;
+
 /* commom */
 typedef enum UNIT { KB, MB, GB, TB, PB, EB } UNIT;
 
@@ -19,12 +25,12 @@ typedef struct DateInfo {
     short sec;
 } DateInfo;
 
-typedef struct Unit_Mapping {
+typedef struct Unit_Mapping { // for Displaying Unit
     UNIT unit;
     char* str;
 } Unit_Mapping;
 
-typedef struct ProcessInfo {
+typedef struct ProcessInfo { // CPU / Memory Usage
     char userName[UT_NAMESIZE + 1];
     pid_t pid;
     float cpu;
@@ -37,7 +43,7 @@ typedef struct ProcessInfo {
 } ProcessInfo;
 
 /* File Permissions */
-typedef struct FileInfo {
+typedef struct FileInfo { // Core file status
     char fullPath[MAX_MOUNTPATH_LEN];
     char path[MAX_PATH_LEN];
     int changed[3]; // [0]: uid / [1]: gid / [2]: permission | -1: ERROR, 0: Do not need to be changed, 1: Need to be changed.
@@ -47,17 +53,17 @@ typedef struct FileInfo {
 } FileInfo;
 
 /* Linux Users */
-typedef struct UserInfo {
+typedef struct UserInfo { // User Information + Last PW Change date
     char* userName;
     uid_t uid;
     int grpCnt;
     gid_t* gid;
     DateInfo lastLogin;
-    char loginIP[UT_LINESIZE + 8]; // ex. Local(tty1) => 8 + UT_LINESIZE
+    char loginIP[UT_LINESIZE + 8];
     DateInfo lastChangePW;
 } UserInfo;
 
-typedef struct LoginInfo {
+typedef struct LoginInfo { // Login History
     char userName[UT_NAMESIZE + 1];
     uid_t uid;
     int status; // Success or Failed
@@ -67,7 +73,7 @@ typedef struct LoginInfo {
 } LoginInfo;
 
 /* Network Interface */
-typedef struct DockerInfo {
+typedef struct DockerInfo { // Network Information
     short* checked;
     char containerName[MAX_DOCKER_CONTAINER_NAME_LEN];
     pid_t pid;
@@ -77,7 +83,7 @@ typedef struct DockerInfo {
     short* ifa_index;
 } DockerInfo;
 
-typedef struct IFASpeed {
+typedef struct IFASpeed { // Network Information
     char ipv4_addr[IPV4_LEN];
     char ifa_name[MAX_DOCKER_CONTAINER_NAME_LEN];
     float speedRX;
@@ -89,20 +95,20 @@ typedef struct IFASpeed {
 } IFASpeed;
 
 /* Parts Information */
-typedef struct CPUInfo {
+typedef struct CPUInfo { // System Information
     char name[MAX_PARTS_NAME_LEN];
     short status;
     short coreCnt;
 } CPUInfo;
 
-typedef struct MEM_UNIT_INFO {
+typedef struct MEM_UNIT_INFO { // System Information
     int status;
     char connectorName[4];
     char type[MAX_PARTS_NAME_LEN];
     char capacity[MAX_CAPACITY_LEN];
 } MEM_UNIT_INFO;
 
-typedef struct MEMInfo {
+typedef struct MEMInfo { // System Information
     short slotsTotal;
     short slotsUsed;
     char installedCapacity[MAX_CAPACITY_LEN];
@@ -110,25 +116,25 @@ typedef struct MEMInfo {
     MEM_UNIT_INFO* unit;
 } MEMInfo;
 
-typedef struct CMOS_BAT_INFO {
+typedef struct CMOS_BAT_INFO { // System Information
     char name[MAX_PARTS_NAME_LEN];
     int status;
 } CMOS_BAT_INFO;
 
-typedef struct FANInfo {
+typedef struct FANInfo { // System Information
     int status;
     char rpm[MAX_CAPACITY_LEN];
     char name[MAX_PARTS_NAME_LEN];
 } FANInfo;
 
-typedef struct PHYSICAL_IFA_Info {
+typedef struct PHYSICAL_IFA_Info { // System Information
     char name[MAX_PARTS_NAME_LEN];
     char ifName[MAX_PARTS_NAME_LEN];
     int connected;
     char speed[MAX_CAPACITY_LEN];
 } PHYSICAL_IFA_Info;
 
-typedef struct SystemInfo {
+typedef struct SystemInfo { // System Information
     char hostname[MAX_PARTS_NAME_LEN];
     char serverModel[MAX_PARTS_NAME_LEN];
     char serviceTag[MAX_PARTS_NAME_LEN];
@@ -137,20 +143,18 @@ typedef struct SystemInfo {
     MEMInfo mem;
     CMOS_BAT_INFO cmosBattery;
     FANInfo fan[MAX_FAN_COUNT];
-    int ifaCount;
-    PHYSICAL_IFA_Info* ifa;
     int psuStatus[MAX_PSU_COUNT];
 } SystemInfo;
 
 /* Disk Information */
-typedef struct PartitionInfo {
+typedef struct PartitionInfo { // DIsk Information
     char fileSystem[MAX_FILESYSTEM_LEN];
     char mountPath[MAX_MOUNTPATH_LEN];
     size_t spaceTotal;
     size_t spaceUse;
 } PartitionInfo;
 
-typedef struct VDInfo {
+typedef struct VDInfo { // DIsk Information
     short driveGroup;
     short virtualDrive;
     char type[MAX_VDISK_TYPE_LEN];
@@ -163,7 +167,7 @@ typedef struct VDInfo {
     char** mountPath;
 } VDInfo;
 
-typedef struct DiskInfo {
+typedef struct DiskInfo { // DIsk Information
     short enclosureNum;
     short slotNum;
     short driveGroup;
@@ -176,7 +180,7 @@ typedef struct DiskInfo {
     char mappedPartition[MAX_MOUNTPATH_LEN];
 } DiskInfo;
 
-typedef struct BBUInfo {
+typedef struct BBUInfo { // DIsk Information
     int status;
     char voltage[MAX_BBU_VOLTAGE_LEN];
     char designCapacity[MAX_BBU_CAPACITY_LEN];
@@ -184,7 +188,7 @@ typedef struct BBUInfo {
     char remainCapacity[MAX_BBU_CAPACITY_LEN];
 } BBUInfo;
 
-typedef struct HBAInfo {
+typedef struct HBAInfo { // DIsk Information
     char HBA_Name[MAX_HBA_NAME_LEN];
     char HBA_Bios_Ver[MAX_HBA_BIOS_VER_LEN];
     char HBA_Serial_Num[MAX_HBA_SERIAL_LEN];
@@ -192,8 +196,8 @@ typedef struct HBAInfo {
     char HBA_Driver_Name[MAX_HBA_DRIVER_NAME_LEN];
     char HBA_Driver_Ver[MAX_HBA_DRIVER_VER_LEN];
     short status;
-    short HBA_Cur_Personality;
-    int HBA_Drive_Groups_Cnt; 
+    short HBA_Cur_Personality; // Mode
+    int HBA_Drive_Groups_Cnt;
     BBUInfo bbuStatus;
 } HBAInfo;
 

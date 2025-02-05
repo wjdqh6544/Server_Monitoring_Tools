@@ -10,9 +10,11 @@ void get_CPU_Information_from_Omreport(CPUInfo* cpuBuf);
 void get_Memory_Information_from_Omreport(MEMInfo* memoryBuf);
 void get_CMOS_Battery_Status_from_Omreport(CMOS_BAT_INFO* cmosBatteryBuf);
 void get_Fan_Status_from_Omreport(FANInfo* fanBuf);
+void get_PSU_Status_from_Omreport(int* psuStatusBuf);
+
+/* List of functions of using to get physical network interface information */
 void get_Physical_IFA_Information_from_Omreport(PHYSICAL_IFA_Info** ifaBuf, int* ifaCount);
 void get_Interface_Speed_from_Omreport(PHYSICAL_IFA_Info* ifaBuf, int ifaCount);
-void get_PSU_Status_from_Omreport(int* psuStatusBuf);
 
 /* List of functions that get disk information */
 int get_VDisk_Information_from_Perccli(VDInfo** vdBuf, int* virtualDriveCnt);

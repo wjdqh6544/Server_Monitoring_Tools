@@ -7,12 +7,13 @@
     (! Important !) Don't decrease the value of BUF_MAX_LINE below "256". (If do that, The program may not work.)
 */
 char* targetFile[] = { // <Abstract path of file> <Owner Name> <Group Name> <Permissions - Octal Number (ex. 777, 0654, and so on..)>
+    "/home/knu_cse_sdd/testSuccess knu_cse_sdd systemdev 0640",
+    "/home/knu_cse_sdd/testFailed knu_cse_sddd systemdevv 0777",
     "/etc/passwd root root 0644",
     "/etc/shadow root root 0640",
     "/etc/hosts root root 0600",
     "/home/knu_cse_sdd/00_project/server_monitoring_tools knu_cse_sdd knu_cse_sdd 0750",
     "/home/knu_cse_sdd/00_project/common.c knu_cse_sdd knu_cse_sdd 777",
-    "/etc/hosts.allow root root 0600"
 };
 
 #endif

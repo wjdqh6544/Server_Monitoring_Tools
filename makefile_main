@@ -1,9 +1,9 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror
-LINK = -lpthread
+LINK = -lpthread -lncurses
 
 TARGET = server_monitoring_tools
-SRCS = resources_monitor.c common.c hw_info.c info_from_log.c os_info.c
+SRCS = server_monitoring_tools.c resources_monitor.c os_monitor.c common.c hw_info.c info_from_log.c os_info.c
 OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)

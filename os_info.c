@@ -28,14 +28,8 @@ int get_Process_Status(ProcessInfo** psBuf, int lineCnt) { // Get process status
     // lineCnt -> the number of displaying the data. It is remaining space of terminal window size.
     FILE* ps_ptr = NULL;
     char errorBuf[BUF_MAX_LINE] = { '\0' }, pathBuf[MAX_MOUNTPATH_LEN] = { '\0' };
-
-    if (*psBuf == NULL || lineCnt != (sizeof(*psBuf) / sizeof(ProcessInfo*))) { // If windows size is changed.
-        for (int i = 0; ((*psBuf != NULL) && ((size_t)i < (sizeof(*psBuf) / sizeof(ProcessInfo*)))); i++) {
-            free_Array((void**)&((*psBuf)[i].command));
-            free_Array((void**)&((*psBuf)[i].userName));
-        }
-        free_Array((void**)psBuf);
-
+    
+    if (*psBuf == NULL) {
         if ((*psBuf = (ProcessInfo*)malloc(lineCnt * sizeof(ProcessInfo))) == NULL) {
             exception(-4, "get_Process_Status", "malloc() - psBuf");
             return -100;
@@ -58,21 +52,25 @@ int get_Process_Status(ProcessInfo** psBuf, int lineCnt) { // Get process status
         strcpy(errorBuf, "popen() - ");
         strcat(errorBuf, GET_PS_COMMAND);
         exception(-2, "get_Process_Status", errorBuf);
+        return -100;
     }
 
     fgets(errorBuf, sizeof(errorBuf), ps_ptr); // Skip Header | USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND       
     for (int i = 0; i < lineCnt; i++) {
         fscanf(ps_ptr, GET_PS_INFO_FORM, (*psBuf)[i].userName, &((*psBuf)[i].pid), &((*psBuf)[i].cpu), &((*psBuf)[i].mem), &((*psBuf)[i].memUseSize), (*psBuf)[i].tty, (*psBuf)[i].start, (*psBuf)[i].time, pathBuf);
-        if (((*psBuf)[i].command = (char*)malloc(strlen(pathBuf) * sizeof(char))) == NULL) { // Allocate array for string (Command)
-            sprintf(errorBuf, "malloc() - psBuf[%d].command", i);
-            exception(-4, "get_Process_Status", errorBuf);
-            continue;
+        if ((*psBuf)[i].command == NULL) {
+            if (((*psBuf)[i].command = (char*)malloc((strlen(pathBuf) + 1) * sizeof(char))) == NULL) { // Allocate array for string (Command)
+                sprintf(errorBuf, "malloc() - psBuf[%d].command", i);
+                exception(-4, "get_Process_Status", errorBuf);
+                continue;
+            }
         }
         strcpy((*psBuf)[i].command, pathBuf);
         if (STRN_CMP_EQUAL((*psBuf)[i].tty, TTY_BACKGROUND)) {
             strcpy((*psBuf)[i].tty, TTY_BACKGROUND_STR);
         }
     }
+
     pclose(ps_ptr);
     return 0;
 }
@@ -203,9 +201,9 @@ int save_History(LoginInfo* historyBuf, int* idx, char* commBuf) { // Save histo
             }
 
             if (strstr(pathBuf, BTMP_NAME) == NULL) {
-                historyBuf[*idx].status = LOGIN_SUCCESS; // Set status (Login Success: wtmp)
+                historyBuf[*idx].status = TYPE_LOGIN_SUCCESS; // Set status (Login Success: wtmp)
             } else {
-                historyBuf[*idx].status = LOGIN_FAILED; // Set status (Login Failed: btmp)
+                historyBuf[*idx].status = TYPE_LOGIN_FAILED; // Set status (Login Failed: btmp)
             }
 
             strncpy(historyBuf[*idx].deviceName, utBuf.ut_line, UT_LINESIZE); // Copy connection method
@@ -216,6 +214,10 @@ int save_History(LoginInfo* historyBuf, int* idx, char* commBuf) { // Save histo
                 strncpy(historyBuf[*idx].loginIP, utBuf.ut_host, UT_LINESIZE);
             } else { // If login through other method
                 strncpy(historyBuf[*idx].loginIP, IP_OTHER_STR, UT_LINESIZE);
+            }
+
+            if (strlen(historyBuf[*idx].loginIP) == 0) {
+                STR_INIT(historyBuf[*idx].loginIP);
             }
 
             loginTime = utBuf.ut_time; // Login Time
@@ -266,16 +268,16 @@ int compare_Date(const void* element1, const void* element2) { // Compare two da
 }
 
 /* List of functions of using to check file permissions */
-int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file permissions
+int get_File_Information(FileInfo** fileInfo, int* notNeedCnt, int* needCnt, int* failedCnt) { // Check file permissions
     FILE* history_fp = NULL;
     char errorBuf[ERROR_MSG_LEN * 2], pathBuf[BUF_MAX_LINE], userBuf[USERNAME_LEN], groupBuf[GRPNAME_LEN], logPath[MAX_MOUNTPATH_LEN];
     struct stat statBuf;
     struct passwd *pw = NULL;
     struct group *grp = NULL;
-    int notFount = 0, notNeedCnt = 0, needCnt = 0, failedCnt = 0;
-    *fileCnt = sizeof(targetFile) / sizeof(targetFile[0]);
+    int notFount = 0;
+    int fileCnt = sizeof(targetFile) / sizeof(targetFile[0]);
 
-    for (int i = 0; i < *fileCnt; i++) {
+    for (int i = 0; i < fileCnt; i++) {
         sscanf(targetFile[i], "%s %*s %*s %*o", pathBuf);
         if (access(pathBuf, F_OK) != 0) {
             sprintf(errorBuf, "File Not found. - %s", pathBuf);
@@ -285,16 +287,16 @@ int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file perm
         }
     }
 
-    *fileCnt -= notFount; // Except the path that not exist.
+    fileCnt -= notFount; // Except the path that not exist.
 
     if (*fileInfo == NULL) { // Allocate Array
-        if ((*fileInfo = (FileInfo*)malloc((*fileCnt) * sizeof(FileInfo))) == NULL) {
+        if ((*fileInfo = (FileInfo*)malloc((fileCnt) * sizeof(FileInfo))) == NULL) {
             exception(-4, "get_File_Information", "malloc() - fileInfo");
             return -100;
         }
     }
 
-    for (int i = 0; i < *fileCnt; i++) { // Initialization
+    for (int i = 0; i < fileCnt; i++) { // Initialization
         STR_INIT((*fileInfo)[i].path);
         STR_INIT((*fileInfo)[i].fullPath);
         (*fileInfo)[i].changed[2] = 0;
@@ -312,7 +314,7 @@ int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file perm
     }
     fprintf(history_fp, "-------------------------------------------------------------------------\n");
 
-    for (int i = 0; i < *fileCnt; i++) { // Copy stat information to array
+    for (int i = 0; i < fileCnt; i++) { // Copy stat information to array
         sscanf(targetFile[i], "%s %s %s %o", (*fileInfo)[i].fullPath, userBuf, groupBuf, &((*fileInfo)[i].permission[1]));
         
         if (access((*fileInfo)[i].fullPath, F_OK) != 0) {
@@ -320,46 +322,54 @@ int get_File_Information(FileInfo** fileInfo, int* fileCnt) { // Check file perm
         }
 
         if (copy_FilePath((*fileInfo)[i].fullPath, (*fileInfo)[i].path) == -100) {
+            fclose(history_fp);
             return -100;
         }
 
         if (stat((*fileInfo)[i].fullPath, &statBuf) == -1) { // Get file stat information
             sprintf(errorBuf, "stat() - %s", strrchr((*fileInfo)[i].fullPath, '/'));
             exception(-4, "get_File_Information", errorBuf);
+            fclose(history_fp);
             return -100;
         }
 
         (*fileInfo)[i].ownerUID[0] = statBuf.st_uid;
         (*fileInfo)[i].groupGID[0] = statBuf.st_gid;
         (*fileInfo)[i].permission[0] = statBuf.st_mode & 0777;
-
         if ((pw = getpwnam(userBuf)) == NULL) { // Convert user name to uid
             sprintf(errorBuf, "getpwnam() - %s", userBuf);
             exception(-4, "get_File_Information", errorBuf);
-            continue;
+            (*fileInfo)[i].changed[0] = FAILED_CHANGING_INVALID;
+        } else {
+            (*fileInfo)[i].ownerUID[1] = pw->pw_uid;
         }
-
-        (*fileInfo)[i].ownerUID[1] = pw->pw_uid;
 
         if ((grp = getgrnam(groupBuf)) == NULL) { // Convert gruop name to gid
             sprintf(errorBuf, "getgrnam() - %s", groupBuf);
             exception(-4, "get_File_Information", errorBuf);
-            continue;
+            (*fileInfo)[i].changed[1] = FAILED_CHANGING_INVALID;
+        } else {
+            (*fileInfo)[i].groupGID[1] = grp->gr_gid;
         }
 
-        (*fileInfo)[i].groupGID[1] = grp->gr_gid;
 
-        (*fileInfo)[i].changed[0] =  (((*fileInfo)[i].ownerUID[0] == (*fileInfo)[i].ownerUID[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
-        (*fileInfo)[i].changed[1] =  (((*fileInfo)[i].groupGID[0] == (*fileInfo)[i].groupGID[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
-        (*fileInfo)[i].changed[2] =  (((*fileInfo)[i].permission[0] == (*fileInfo)[i].permission[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
+        if ((*fileInfo)[i].changed[0] != FAILED_CHANGING_INVALID) {
+            (*fileInfo)[i].changed[0] = (((*fileInfo)[i].ownerUID[0] == (*fileInfo)[i].ownerUID[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
+        }
+        if ((*fileInfo)[i].changed[1] != FAILED_CHANGING_INVALID) {
+            (*fileInfo)[i].changed[1] = (((*fileInfo)[i].groupGID[0] == (*fileInfo)[i].groupGID[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
+        }
+        if ((*fileInfo)[i].changed[2] != FAILED_CHANGING_INVALID) {
+            (*fileInfo)[i].changed[2] = (((*fileInfo)[i].permission[0] == (*fileInfo)[i].permission[1]) ? NOT_NEED_CHANGING : NEED_CHANGING); // Check whether need to be changed uid/gid/permissions.
+        }
 
         change_File_Stat(&(*fileInfo)[i]); // Edit wrong stat information
-        write_Stat_Change_Log(&(*fileInfo)[i], &history_fp, &notNeedCnt, &needCnt, &failedCnt); // 
+        write_Stat_Change_Log(&(*fileInfo)[i], &history_fp, notNeedCnt, needCnt, failedCnt); // 
     }
 
     fprintf(history_fp, "-------------------------------------------------------------------------\n");
     fprintf(history_fp, "The number of (Total file: %d | not Modified: %d | Modified Successfully: %d | Failed to modify: %d)\n\n", 
-            (notNeedCnt + needCnt + failedCnt), notNeedCnt, needCnt, failedCnt);
+            ((*notNeedCnt) + (*needCnt) + (*failedCnt)), *notNeedCnt, *needCnt, *failedCnt);
 
     fclose(history_fp);
     return 0;
@@ -466,8 +476,10 @@ void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp, int* notNeedCnt, int* n
             fprintf(*fp, "%s (%03o -> %03o)\n", FAILED_CHANGING_STR, fileBuf->permission[0], fileBuf->permission[1]);
             break;
     }
-
-    if ((fileBuf->changed[0] == FAILED_CHANGING) || (fileBuf->changed[1] == FAILED_CHANGING) || (fileBuf->changed[2] == FAILED_CHANGING)) { // If a file that failed to modify exists
+    
+    if ((fileBuf->changed[0] == FAILED_CHANGING_INVALID) || (fileBuf->changed[1] == FAILED_CHANGING_INVALID) || (fileBuf->changed[2] == FAILED_CHANGING_INVALID)) { // If a file that failed to modify exists {
+        (*failedCnt)++;
+    } else if ((fileBuf->changed[0] == FAILED_CHANGING) || (fileBuf->changed[1] == FAILED_CHANGING) || (fileBuf->changed[2] == FAILED_CHANGING)) { // If a file that failed to modify exists
         (*failedCnt)++;
     } else if ((fileBuf->changed[0] == NOT_NEED_CHANGING) && (fileBuf->changed[1] == NOT_NEED_CHANGING) && (fileBuf->changed[2] == NOT_NEED_CHANGING)) { // If a file not need to be modified
         (*notNeedCnt)++;
@@ -479,11 +491,11 @@ void write_Stat_Change_Log(FileInfo* fileBuf, FILE** fp, int* notNeedCnt, int* n
 /* List of functions of using to get Linux user information*/
 int get_UserList(UserInfo** userlist, int* userCnt) { // Get User List. return the number of users.
     struct passwd *userBuf;
+    UserInfo tmpBuf;
     uid_t UID_MIN, UID_MAX;
     gid_t tmp[NGROUPS_MAX] = { 0 }, tmpVal;
     int idx = 0;
     char lineBuf[BUF_MAX_LINE];
-
     get_UID_Interval(&UID_MIN, &UID_MAX);
 
     setpwent(); // Move pointer of /etc/passwd to head.
@@ -549,13 +561,25 @@ int get_UserList(UserInfo** userlist, int* userCnt) { // Get User List. return t
     }
 
     for (int i = 0; i < *userCnt; i++) {
-        for (int j = 0; j < (*userlist)[i].grpCnt - 1; j++) { // Sorting ascending order
+        for (int j = 0; j < (*userlist)[i].grpCnt - 1; j++) { // Sorting ascending order, Criteria: Group GID
             for (int k = j + 1; k < (*userlist)[i].grpCnt; k++) {
                 if ((*userlist)[i].gid[j] > (*userlist)[i].gid[k]) {
                     tmpVal = (*userlist)[i].gid[j];
                     (*userlist)[i].gid[j] = (*userlist)[i].gid[k];
                     (*userlist)[i].gid[k] = tmpVal;
                 }
+            }
+        }
+    }
+
+    for (int i = 0; i < (*userCnt) - 1; i++) {
+        for (int j = i + 1; j < *userCnt; j++) { // Sorting ascending order, Criteria: userName
+            if (strcmp((*userlist)[j].userName, "root") == 0) {
+                SWAP((*userlist)[i], (*userlist)[j], tmpBuf); // root -> 1st
+                break;
+            }
+            if ((i != 0) && (strcmp((*userlist)[i].userName, (*userlist)[j].userName) > 0)) {
+                SWAP((*userlist)[i], (*userlist)[j], tmpBuf);
             }
         }
     }
@@ -636,8 +660,8 @@ void get_Last_Login_Time_and_IP(UserInfo* userBuf) { // Get last login date and 
     struct utmp ut;
     struct tm *tm = NULL;
     time_t last_logined;
-    int fd = -1;
-    char lineBuf[BUF_MAX_LINE];
+    int fd = -1, exit = 0;
+    char lineBuf[BUF_MAX_LINE], nameBuf[UT_NAMESIZE] = { '\0' };
 
     if ((fd = open(WTMP_LOCATION, O_RDONLY)) == -1) {
         exception(-1, "get_Last_Login_Time", WTMP_LOCATION);
@@ -645,9 +669,9 @@ void get_Last_Login_Time_and_IP(UserInfo* userBuf) { // Get last login date and 
     }
 
     lseek(fd, -sizeof(struct utmp), SEEK_END);
-
     while (read(fd, &ut, sizeof(struct utmp)) == sizeof(struct utmp)) {
-        if (strncmp(ut.ut_user, userBuf->userName, sizeof(ut.ut_user)) == 0 && ut.ut_type == USER_PROCESS) { 
+        strncpy(nameBuf, ut.ut_user, sizeof(nameBuf));
+        if ((STRN_CMP_EQUAL(userBuf->userName, nameBuf)) && ut.ut_type == USER_PROCESS) { 
             strncpy(lineBuf, ut.ut_line, sizeof(ut.ut_line));
             if (STRN_CMP_EQUAL(lineBuf, "tty")) { // If login through Console (Local)
                 sprintf(lineBuf, "Local(%s)", ut.ut_line);
@@ -676,7 +700,12 @@ void get_Last_Login_Time_and_IP(UserInfo* userBuf) { // Get last login date and 
             close(fd);
             return;
         }
-        lseek(fd, -sizeof(struct utmp) * 2, SEEK_CUR);
+        if (exit == 1) {
+            return;
+        }
+        if (lseek(fd, -sizeof(struct utmp) * 2, SEEK_CUR) == 0) {
+            exit = 1;
+        }
     }
     close(fd);
 }
@@ -701,9 +730,9 @@ int get_Date_Interval(const DateInfo* targetDate) { // Get date interval (Target
 }
 
 /* List of functions of using to get network interface information (from /proc/net/dev) */
-int get_IFA_Speed(DockerInfo** containerInfo, IFASpeed** ifa, short* ifaCount, int* containerCnt){ // Get receive and transmit speed of network interfaces.
+int get_IFA_Speed(DockerInfo** containerInfo, IFASpeed** ifa, int* ifaCount, int* containerCnt, int converted) { // Get receive and transmit speed of network interfaces.
     FILE *fp = NULL;
-    char lineBuf[BUF_MAX_LINE] = { '\0' };
+    char lineBuf[BUF_MAX_LINE] = { '\0' }, nameBuf[MAX_DOCKER_CONTAINER_NAME_LEN] = { '\0' };
     static size_t *priv_byteRX = NULL, *priv_byteTX = NULL;
     size_t byteRX = 0, byteTX = 0;
     
@@ -725,6 +754,7 @@ int get_IFA_Speed(DockerInfo** containerInfo, IFASpeed** ifa, short* ifaCount, i
     if (priv_byteRX == NULL){
         if ((priv_byteRX = (size_t*)calloc((*ifaCount), sizeof(size_t))) == NULL) {
             exception(-4, "get_IFA_Speed", "calloc() - priv_byteRX");
+            fclose(fp);
             return -100;
         }
     }
@@ -732,6 +762,7 @@ int get_IFA_Speed(DockerInfo** containerInfo, IFASpeed** ifa, short* ifaCount, i
     if (priv_byteTX == NULL){
         if ((priv_byteTX = (size_t*)calloc((*ifaCount), sizeof(size_t))) == NULL) {
             exception(-4, "get_IFA_Speed", "calloc() - priv_byteTX");
+            fclose(fp);
             return -100;
         }
     }
@@ -739,36 +770,43 @@ int get_IFA_Speed(DockerInfo** containerInfo, IFASpeed** ifa, short* ifaCount, i
     if (*ifa == NULL){ // If array not allocated, allocate array. (When first invoked)
         if ((*ifa = (IFASpeed*)malloc((*ifaCount) * sizeof(IFASpeed))) == NULL) {
             exception(-4, "get_IFA_Speed", "malloc() - ifaBuf");
+            fclose(fp);
             return -100;
         }
     }
-
-    for (int i = 0; i < *ifaCount; i++) { // Initialization
-        STR_INIT((*ifa)[i].ipv4_addr);
-        STR_INIT((*ifa)[i].ifa_name);
-        (*ifa)[i].speedRX = -100;
-        (*ifa)[i].speedTX = -100;
-        (*ifa)[i].errorRX = 0;
-        (*ifa)[i].errorTX = 0;
-        (*ifa)[i].dropRX = 0;
-        (*ifa)[i].dropTX = 0;
-    }
-
-    get_Docker_Container_Information(containerInfo, containerCnt); // Get docker container information (container name, veth name and its IPv4 Address)
-
-    for (int i = 0; fscanf(fp, NET_DEV_FORM, (*ifa)[i].ifa_name, &byteRX, &((*ifa)[i].errorRX), &((*ifa)[i].dropRX), &byteTX, &((*ifa)[i].errorTX), &((*ifa)[i].dropTX)) != EOF; i++) {
-        (*ifa)[i].ifa_name[strlen((*ifa)[i].ifa_name) - 1] = '\0';
-        (*ifa)[i].speedRX = (byteRX - priv_byteRX[i]) / (float)1024; // Calculate speed and Convert unit to "KB"
-        (*ifa)[i].speedTX = (byteTX - priv_byteTX[i]) / (float)1024; // Calculate speed and Convert unit to "KB"
-
-        get_IPv4_Addr((*ifa)[i].ifa_name, (*ifa)[i].ipv4_addr); // Get IPv4 Address
-
-        if (STRN_CMP_EQUAL((*ifa)[i].ifa_name, CHECK_BRIDGE_FORM)) {
-            convert_BridgeID_to_Name((*ifa)[i].ifa_name);
+    if (converted == 0) {
+        for (int i = 0; i < *ifaCount; i++) { // Initialization
+            STR_INIT((*ifa)[i].ipv4_addr);
+            STR_INIT((*ifa)[i].ifa_name);
+            (*ifa)[i].speedRX = -100;
+            (*ifa)[i].speedTX = -100;
+            (*ifa)[i].errorRX = 0;
+            (*ifa)[i].errorTX = 0;
+            (*ifa)[i].dropRX = 0;
+            (*ifa)[i].dropTX = 0;
         }
 
-        if (STRN_CMP_EQUAL((*ifa)[i].ifa_name, DOCKER_VETH_INTERFACE_PREFIX)) {
-            convert_Veth_to_Container_Info(*containerInfo, &((*ifa)[i]), *containerCnt);
+        if (*containerInfo == NULL) {
+            get_Docker_Container_Information(containerInfo, containerCnt); // Get docker container information (container name, veth name and its IPv4 Address)
+        }
+    }
+
+
+    for (int i = 0; fscanf(fp, NET_DEV_FORM, nameBuf, &byteRX, &((*ifa)[i].errorRX), &((*ifa)[i].dropRX), &byteTX, &((*ifa)[i].errorTX), &((*ifa)[i].dropTX)) != EOF; i++) {
+        nameBuf[strlen(nameBuf) - 1] = '\0';
+        (*ifa)[i].speedRX = (byteRX - priv_byteRX[i]) / (float)1024; // Calculate speed and Convert unit to "KB"
+        (*ifa)[i].speedTX = (byteTX - priv_byteTX[i]) / (float)1024; // Calculate speed and Convert unit to "KB"
+        
+        if (converted == 0) {
+            strcpy((*ifa)[i].ifa_name, nameBuf);
+            get_IPv4_Addr((*ifa)[i].ifa_name, (*ifa)[i].ipv4_addr); // Get IPv4 Address
+            if (STRN_CMP_EQUAL((*ifa)[i].ifa_name, CHECK_BRIDGE_FORM)) {
+                convert_BridgeID_to_Name((*ifa)[i].ifa_name);
+            }
+
+            if (STRN_CMP_EQUAL((*ifa)[i].ifa_name, DOCKER_VETH_INTERFACE_PREFIX)) {
+                convert_Veth_to_Container_Info(*containerInfo, &((*ifa)[i]), *containerCnt);
+            }
         }
 
         priv_byteRX[i] = byteRX;
@@ -776,13 +814,12 @@ int get_IFA_Speed(DockerInfo** containerInfo, IFASpeed** ifa, short* ifaCount, i
     }
 
     fclose(fp);
-
     sort_Docker_Network(*ifa, *ifaCount);
 
     return 0;
 }
 
-void get_IPv4_Addr(const char* ifa_name, char* ipv4_addr){ // Get IPv4 address of a network interface.
+void get_IPv4_Addr(const char* ifa_name, char* ipv4_addr) { // Get IPv4 address of a network interface.
     struct ifaddrs *ifa;
     struct sockaddr_in *addr = NULL;
     char errorBuf[ERROR_MSG_LEN] = { '\0' };
@@ -806,7 +843,7 @@ void get_IPv4_Addr(const char* ifa_name, char* ipv4_addr){ // Get IPv4 address o
     }
 }
 
-void get_Docker_Container_Information(DockerInfo** containerInfo, int* containerCnt){ // Get docker container information: name and ipv4 address corresponding to veth (vethxxxxxx: virtual interface of container)
+void get_Docker_Container_Information(DockerInfo** containerInfo, int* containerCnt) { // Get docker container information: name and ipv4 address corresponding to veth (vethxxxxxx: virtual interface of container)
     /* 
     containerInfo: Must be 'not' allocated to memory. (At this function, docker container information list is allocated to memory.)
     So, Caller invokes this function with pointer that initialized with "NULL"
@@ -895,32 +932,38 @@ void get_Docker_Container_Information(DockerInfo** containerInfo, int* container
         if (((*containerInfo)[i].checked = (short*)calloc((*containerInfo)[i].ifaCount, sizeof(short))) == NULL) { // Create array for checking status -> Init to "0" Automatically.
             sprintf(lineBuf, "calloc() - containerInfo[%d].checked", i);
             exception(-4, "get_Docker_Container_Information", lineBuf);
+            fclose(docker_ptr);
             return;
         }
         if (((*containerInfo)[i].vethName = (char**)malloc(((*containerInfo)[i].ifaCount) * sizeof(char*))) == NULL) { // Create 2D array for veth name.
             sprintf(lineBuf, "malloc() - containerInfo[%d].vethName", i);
             exception(-4, "get_Docker_Container_Information", lineBuf);
+            fclose(docker_ptr);
             return;
         }
         if (((*containerInfo)[i].ipv4_addr = (char**)malloc(((*containerInfo)[i].ifaCount) * sizeof(char*))) == NULL) { // Create 2D array for IPv4 of veth.
             sprintf(lineBuf, "malloc() - containerInfo[%d].ipv4_addr", i);
             exception(-4, "get_Docker_Container_Information", lineBuf);
+            fclose(docker_ptr);
             return;
         }
         if (((*containerInfo)[i].ifa_index = (short*)malloc(((*containerInfo)[i].ifaCount) * sizeof(short))) == NULL) { // Create array for veth interface index.
             sprintf(lineBuf, "malloc() - containerInfo[%d].ifa_index", i);
             exception(-4, "get_Docker_Container_Information", lineBuf);
+            fclose(docker_ptr);
             return;
         }
         for (int j = 0; j < (*containerInfo)[i].ifaCount; j++) { // Initialization
             if (((*containerInfo)[i].vethName[j] = (char*)malloc(MAX_DOCKER_CONTAINER_NAME_LEN * sizeof(char))) == NULL) {
                 sprintf(lineBuf, "malloc() - containerInfo[%d].vethName[%d]", i, j);
                 exception(-4, "get_Docker_Container_Information", lineBuf);
+                fclose(docker_ptr);
                 return;
             }
             if (((*containerInfo)[i].ipv4_addr[j] = (char*)malloc(IPV4_LEN * sizeof(char))) == NULL) {
                 sprintf(lineBuf, "malloc() - containerInfo[%d].ipv4_addr[%d]", i, j);
                 exception(-4, "get_Docker_Container_Information", lineBuf);
+                fclose(docker_ptr);
                 return;
             }
             STR_INIT((*containerInfo)[i].vethName[j]);
@@ -983,7 +1026,7 @@ void get_Docker_Container_Information(DockerInfo** containerInfo, int* container
     }
 }
 
-void convert_Veth_to_Container_Info(DockerInfo* containerInfo, IFASpeed* ifaBuf, int containerCnt){ // Change veth name to container name. - (*ifaBuf).ifa_name: (Before) vethxxxxxx -> (After) example_Container )
+void convert_Veth_to_Container_Info(DockerInfo* containerInfo, IFASpeed* ifaBuf, int containerCnt) { // Change veth name to container name. - (*ifaBuf).ifa_name: (Before) vethxxxxxx -> (After) example_Container )
     // kinds of Change information: veth Name (to container name) and ipv4 address ("N/A" to container's ipv4 name)
     // containerInfo: had to be allocated and written the information previously. (At this function, containerInfo is array with data, and only used to read data.)
     // So, Caller invokes this function with array that have container information.
@@ -1118,11 +1161,11 @@ int compare_IPv4 (const char* str1, const char* str2) { // Compare the order of 
 }
 
 /* List of functions of using to get partition information (from /proc/diskstats, /proc/mounts) */
-void get_Partition_IO_Speed(int partitionCnt, int idx, const char* fileSystem, float* readSpeed, float* writeSpeed){ // Get speed of Partition's Read/Write Speed
+void get_Partition_IO_Speed(int partitionCnt, int idx, const char* fileSystem, float* readSpeed, float* writeSpeed) { // Get speed of Partition's Read/Write Speed
     FILE *fp = NULL;
     size_t read = 0, write = 0, sector_size = 0;
     static size_t *priv_read = NULL, *priv_write = NULL;
-    char target[BUF_MAX_LINE], compTarget[BUF_MAX_LINE]; // for dm-x
+    char target[BUF_MAX_LINE] = { '\0' }, compTarget[BUF_MAX_LINE] = { '\0' }, lineBuf[BUF_MAX_LINE] = { '\0' }; // for dm-x
 
     if (priv_read == NULL){
         if ((priv_read = (size_t*)calloc(partitionCnt, sizeof(size_t))) == NULL) {
@@ -1153,10 +1196,12 @@ void get_Partition_IO_Speed(int partitionCnt, int idx, const char* fileSystem, f
             return;
         }
 
-        while (fscanf(fp, DISKSTATS_FORM, compTarget, &read, &write) != EOF) {
+        while (fgets(lineBuf, sizeof(lineBuf), fp) != NULL) {
+            sscanf(lineBuf, DISKSTATS_FORM, compTarget, &read, &write);
             if (strcmp(compTarget, target) == 0) { // find target partition
                 (*readSpeed) = ((read - priv_read[idx]) * sector_size) / (float)1024; // Convert speed unit to "KB/s"
                 (*writeSpeed) = ((write - priv_write[idx]) * sector_size) / (float)1024; // Convert speed unit to "KB/s"
+                fclose(fp);
                 break;
             }
         }
@@ -1167,7 +1212,7 @@ void get_Partition_IO_Speed(int partitionCnt, int idx, const char* fileSystem, f
     }
 }
 
-size_t get_Sector_Size(const char* device){ // Get sector size of partition
+size_t get_Sector_Size(const char* device) { // Get sector size of partition
     size_t sector_size = 0;
     FILE* fp = NULL;
     char path[MAX_SECTOR_PATH_LEN] = { '\0' }, tmpPath[BUF_MAX_LINE];
@@ -1188,11 +1233,11 @@ size_t get_Sector_Size(const char* device){ // Get sector size of partition
     }
 
     fscanf(fp, "%ld", &sector_size);
-
+    fclose(fp);
     return sector_size;
 }
 
-void get_Original_Path_for_LVM_Partitions(const char* originPath, char* destination){ // Get Real path for Symbolic Link. (originPath: /dev/mapper/rl-xxxx, destination: dm-x)
+void get_Original_Path_for_LVM_Partitions(const char* originPath, char* destination) { // Get Real path for Symbolic Link. (originPath: /dev/mapper/rl-xxxx, destination: dm-x)
     char real_path[MAX_MOUNTPATH_LEN];
     char* dest = NULL;
 
@@ -1210,7 +1255,7 @@ void get_Original_Path_for_LVM_Partitions(const char* originPath, char* destinat
     }
 }
 
-void get_MountPath_from_FileSystem(const char* fileSystem, char*** mountPath, int* mountPathCnt){ // Get the mount path using fileSystem path of Disk.
+void get_MountPath_from_FileSystem(const char* fileSystem, char*** mountPath, int* mountPathCnt) { // Get the mount path using fileSystem path of Disk.
     FILE* lsblk_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' }, originPath[5] = { '\0' }, mountBuf[MAX_MOUNTPATH_LEN] = { '\0' };
     int mountIdx = 0;
@@ -1280,7 +1325,7 @@ void get_MountPath_from_FileSystem(const char* fileSystem, char*** mountPath, in
     return;
 }
 
-int get_Partition_Information(PartitionInfo** partition_list_ptr, int* partition_cnt){ // Get the partition list and capacity of each partitions.
+int get_Partition_Information(PartitionInfo** partition_list_ptr, int* partition_cnt) { // Get the partition list and capacity of each partitions.
     // partition_list_ptr: Must be 'not' allocated to memory. (At this function, partition list is allocated to memory.)
     // So, Caller invokes this function with pointer that initialized with "NULL"
     FILE* fp = NULL;
@@ -1289,7 +1334,7 @@ int get_Partition_Information(PartitionInfo** partition_list_ptr, int* partition
     char mountPath[MAX_MOUNTPATH_LEN] = { '\0' };
 
     if ((fp = fopen(MOUNTS_LOCATION, "r")) == NULL) { // Open /proc/mounts
-        exception(-1, "get_Partition_List", MOUNTS_LOCATION);
+        exception(-1, "get_Partition_Information", MOUNTS_LOCATION);
         return -100;
     }
 
@@ -1304,11 +1349,14 @@ int get_Partition_Information(PartitionInfo** partition_list_ptr, int* partition
         cnt++;
     }
 
-    free_Array((void**)partition_list_ptr); // Free the memory allocated for the existing array.
-    if ((*partition_list_ptr = (PartitionInfo*)malloc(cnt * sizeof(PartitionInfo))) == NULL) { // Allocate new memory.
-        exception(-4, "get_Partition_Information", "malloc() - partition_list_ptr");
-        return -100;
+    if (*partition_list_ptr == NULL) {
+        if ((*partition_list_ptr = (PartitionInfo*)malloc(cnt * sizeof(PartitionInfo))) == NULL) { // Allocate new memory.
+            exception(-4, "get_Partition_Information", "malloc() - partition_list_ptr");
+            fclose(fp);
+            return -100;
+        }
     }
+
     for (int i = 0; i < cnt; i++){ // Initialization
         STR_INIT((*partition_list_ptr)[i].fileSystem);
         STR_INIT((*partition_list_ptr)[i].mountPath);
@@ -1335,11 +1383,11 @@ int get_Partition_Information(PartitionInfo** partition_list_ptr, int* partition
 
     (*partition_cnt) = cnt;
 
+    fclose(fp);
     return 0;
-
 }
 
-void get_Partition_Usage(PartitionInfo* partitionBuf){ // Get the capacity of a partition.
+void get_Partition_Usage(PartitionInfo* partitionBuf) { // Get the capacity of a partition.
     struct statvfs statBuf;
     char errorBuf[ERROR_MSG_LEN] = { '\0' };
     

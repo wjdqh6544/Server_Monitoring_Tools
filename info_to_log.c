@@ -11,7 +11,7 @@
 
 extern const DateInfo dateBuf;
 
-void* write_Temperature_to_Log(){ // Write temperature information to Log file.
+void* write_Temperature_to_Log() { // Write temperature information to Log file.
     int fd = -1;
     TempLog tempBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
@@ -35,7 +35,7 @@ void* write_Temperature_to_Log(){ // Write temperature information to Log file.
     return NULL;
 }
 
-void* write_Usage_to_Log(){ // Write usage information to Log file.
+void* write_Usage_to_Log() { // Write usage information to Log file.
     int fd = -1;
     UsageLog usageBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
@@ -60,7 +60,7 @@ void* write_Usage_to_Log(){ // Write usage information to Log file.
     return NULL;
 }
 
-void* write_Warning_to_Log(){ // Write temperature and usage to Log If the value is more than or equal to the critical point.
+void* write_Warning_to_Log() { // Write temperature and usage to Log If the value is more than or equal to the critical point.
     int fd = -1;
     WarningLog warningBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
@@ -89,7 +89,7 @@ void* write_Warning_to_Log(){ // Write temperature and usage to Log If the value
     return NULL;
 }
 
-void get_Temperature_from_System(TempInfo* tempBuf){  // Get temperature information
+void get_Temperature_from_System(TempInfo* tempBuf) {  // Get temperature information
     // For getting temperature, Initialize storage value.
     tempBuf->inlet = -100; // Initialization; -100 means "N/A"
     tempBuf->exhaust = -100;
@@ -104,7 +104,7 @@ void get_Temperature_from_System(TempInfo* tempBuf){  // Get temperature informa
     get_Temperature_Perccli(tempBuf);
 }
 
-void get_Temperature_Omreport(TempInfo* tempBuf){ // Get temperature information from omreport
+void get_Temperature_Omreport(TempInfo* tempBuf) { // Get temperature information from omreport
     FILE* omreport_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
@@ -137,7 +137,7 @@ void get_Temperature_Omreport(TempInfo* tempBuf){ // Get temperature information
     pclose(omreport_ptr);
 }
 
-void get_Temperature_Perccli(TempInfo* tempBuf){ // Get temperature information from perccli
+void get_Temperature_Perccli(TempInfo* tempBuf) { // Get temperature information from perccli
     FILE* perccli_ptr = NULL;
     char lineBuf[BUF_MAX_LINE] = { '\0' };
     char* targetPos = NULL;
@@ -184,7 +184,7 @@ void get_Temperature_Perccli(TempInfo* tempBuf){ // Get temperature information 
     pclose(perccli_ptr);
 }
 
-void get_CPU_Usage_Percent_of_All_Core(CpuUsage* cpuUsageBuf){ // Get CPU Usage(%) from Jiffies
+void get_CPU_Usage_Percent_of_All_Core(CpuUsage* cpuUsageBuf) { // Get CPU Usage(%) from Jiffies
     size_t user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0, guest = 0, guest_nice = 0;
     static size_t priv_total = 0, priv_idle = 0;
     FILE *fp = NULL;
@@ -205,7 +205,7 @@ void get_CPU_Usage_Percent_of_All_Core(CpuUsage* cpuUsageBuf){ // Get CPU Usage(
     priv_idle = idle;
 }
 
-void get_Memory_Usage(MemUsage* memUsageBuf){ // Get Memory (Physical / SWAP) Size from /proc/meminfo
+void get_Memory_Usage(MemUsage* memUsageBuf) { // Get Memory (Physical / SWAP) Size from /proc/meminfo
     FILE* fp = NULL;
     char buf[MEMINFO_MAX_LINE] = { '\0' };
     size_t size_tmp_buf = 0;

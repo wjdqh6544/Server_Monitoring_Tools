@@ -9,7 +9,7 @@
 
 extern const DateInfo dateBuf;
 
-int remove_History_Log(int type){ // Remove log file
+int remove_History_Log(int type) { // Remove log file
     FILE* ls_ptr = NULL;
     DateInfo preserveDate[2]; // [0]: Yesterday's Date, [1]: Date 2 days ago
     char pathBuf[BUF_MAX_LINE] = { '\0' }, errorBuf[BUF_MAX_LINE] = { '\0' }, filenameBuf[WARNING_LOG_FORM_LEN] = { '\0' }, dateStr[3][9]; // [0]: today, [1]: yesterday, [2]: 2 days ago
@@ -51,7 +51,7 @@ int remove_History_Log(int type){ // Remove log file
     return res;
 }
 
-int get_Warning_History_from_Log(WarningLog** warningList, int* warningCnt){ // Get Warning History
+int get_Warning_History_from_Log(WarningLog** warningList, int* warningCnt) { // Get Warning History
     FILE* ls_ptr = NULL;
     int idx = 0, fd = -1;
     char errorBuf[BUF_MAX_LINE] = { '\0' }, pathBuf[BUF_MAX_LINE] = { '\0' }, filenameBuf[WARNING_LOG_FORM_LEN] = { '\0' }, commandBuf[BUF_MAX_LINE] = { '\0' };
@@ -86,7 +86,7 @@ int get_Warning_History_from_Log(WarningLog** warningList, int* warningCnt){ // 
     return 0;
 }
 
-int get_WarningLog_Line_Cnt(){ // Get the number of Warning history 
+int get_WarningLog_Line_Cnt() { // Get the number of Warning history 
     FILE* ls_ptr = NULL;
     char pathBuf[BUF_MAX_LINE] = { '\0' }, errorBuf[BUF_MAX_LINE] = { '\0' };
     size_t bytes = 0, sumBytes = 0;
@@ -106,7 +106,7 @@ int get_WarningLog_Line_Cnt(){ // Get the number of Warning history
     return sumBytes / sizeof(WarningLog); // Calculate the number of history log content.
 }
 
-int get_Memory_Usage_from_Log(MemUsage* memBuf){ // Get Memory (Physical, SWAP) Usage (Capacity) from log file.
+int get_Memory_Usage_from_Log(MemUsage* memBuf) { // Get Memory (Physical, SWAP) Usage (Capacity) from log file.
     int fd = -1;
     UsageLog logBuf;
     char fullpath[MAX_LOG_PATH_LEN] = { '\0' };
@@ -133,9 +133,11 @@ int get_Memory_Usage_from_Log(MemUsage* memBuf){ // Get Memory (Physical, SWAP) 
     return 0;
 }
 
-int get_Average_Usage_Percent_from_Log(float* avg_usage_buf, int inputInterval, int type){ // Get average usage information from log file.
+int get_Average_Usage_Percent_from_Log(float* avg_usage_buf, int inputInterval, int type, UsageLog* usage1sec) { // Get average usage information from log file.
     // avg_usage_buf: Must be allocated to memory. (At caller, Array / Vairable must be allocated in memory)
-    //Average interval: inputInterval; MAX = 86400 (1 days)
+    // Average interval: inputInterval; MAX = 86400 (1 days)
+    // If not want to calculate avg value, avg_temp_buf and type must be NULL, TYPE_NOT_AVG respectively. inputInterval value don't care.
+    // If vise versa, temp1sec muse be NULL.
     int fd = -1, change_file = 0, line_cnt = 0, interval = inputInterval;
     UsageLog usageBuf;
     DateInfo dateTmp;
@@ -149,6 +151,10 @@ int get_Average_Usage_Percent_from_Log(float* avg_usage_buf, int inputInterval, 
             avg_usage_buf[0] = 0; // Physical Memory Usage
             avg_usage_buf[1] = 0; // SWAP Usage
             break;
+        case TYPE_NOT_AVG:
+            usage1sec->cpu.usage = -100;
+            usage1sec->mem.memTotal = 0;
+            break;
         default:
             exception(-5, "get_Average_Usage_from_Log", "Wrong Type");
             return -100;
@@ -158,6 +164,20 @@ int get_Average_Usage_Percent_from_Log(float* avg_usage_buf, int inputInterval, 
     if ((fd = open(fullpath, O_RDONLY)) == -1){
         exception(-1, "get_Average_Usage_from_Log", fullpath);
         return -100;
+    }
+
+    if (type == TYPE_NOT_AVG) {
+        if (type == TYPE_NOT_AVG) {
+            lseek(fd, -sizeof(UsageLog), SEEK_END); // Move last line
+            if (read(fd, usage1sec, sizeof(*usage1sec)) != sizeof(*usage1sec)) {
+                exception(-2, "get_Average_Usage_from_Log", "<Read data size> != sizeof(TempLog)");
+                close(fd);
+                return -100;
+            } else {
+                close(fd);
+                return 0;
+            }
+        }
     }
 
     for (int line = 1; line <= interval; line++) { // Read data (# of data: intervalSec)
@@ -183,7 +203,7 @@ int get_Average_Usage_Percent_from_Log(float* avg_usage_buf, int inputInterval, 
         }
 
         if (read(fd, &usageBuf, sizeof(UsageLog)) != sizeof(UsageLog)) {
-            exception(-2, "get_Average_Usage_from_Log", "<Read data size> != sizeof(UsageLog)");
+            exception(-2, "get_Average_Usage_from_Log", "In Average, <Read data size> != sizeof(UsageLog)");
             continue;
         }
 
@@ -208,9 +228,11 @@ int get_Average_Usage_Percent_from_Log(float* avg_usage_buf, int inputInterval, 
     return 0;
 }
 
-int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int type){ // Get average temperature information from log file.
+int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int type, TempLog* temp1sec) { // Get average temperature information from log file.
     // avg_temp_buf: Must be allocated to memory. (At caller, Array / Vairable must be allocated in memory)
-    //Average interval: inputInterval; MAX = 86400 (1 days)
+    // Average interval: inputInterval; MAX = 86400 (1 days)
+    // If not want to calculate avg value, avg_temp_buf and type must be NULL, TYPE_NOT_AVG respectively. inputInterval value don't care.
+    // If vise versa, temp1sec muse be NULL.
     int fd = -1, change_file = 0, line_cnt = 0, interval = inputInterval;
     TempLog tempBuf;
     DateInfo dateTmp;
@@ -233,6 +255,20 @@ int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int
                 avg_temp_buf[storageIdx]  = -100;
             }
             break;
+        case TYPE_NOT_AVG:
+            temp1sec->date = (DateInfo){ 0, 0, 0, 0, 0, 0 };
+            temp1sec->temp.inlet = -100;
+            temp1sec->temp.exhaust = -100;
+            temp1sec->temp.raidCore = -100;
+            temp1sec->temp.raidController = -100;
+            temp1sec->temp.bbu = -100;
+            for (int i = 0; i < MAX_CPU_COUNT; i++) {
+                temp1sec->temp.cpu[i] = -100;
+            }
+            for (int i = 0; i < MAX_STORAGE_COUNT; i++) {
+                temp1sec->temp.storage[i] = -100;
+            }
+            break;
         default:
             exception(-5, "get_Average_Usage_from_Log", "Invalid function parameter");
             return -100;
@@ -242,6 +278,18 @@ int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int
     if ((fd = open(fullpath, O_RDONLY)) == -1){
         exception(-1, "get_Average_Temperature_from_Log", fullpath);
         return -100;
+    }
+
+    if (type == TYPE_NOT_AVG) {
+        lseek(fd, -sizeof(TempLog), SEEK_END); // Move last line
+        if (read(fd, temp1sec, sizeof(*temp1sec)) != sizeof(*temp1sec)) {
+            exception(-2, "get_Average_Temperature_from_Log", "<Read data size> != sizeof(TempLog)");
+            close(fd);
+            return -100;
+        } else {
+            close(fd);
+            return 0;
+        }
     }
 
     for (int line = 1; line <= interval; line++) { // Read data (# of data: intervalSec)
@@ -267,7 +315,7 @@ int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int
         }
 
         if (read(fd, &tempBuf, sizeof(tempBuf)) != sizeof(tempBuf)) {
-            exception(-2, "get_Average_Temperature_from_Log", "<Read data size> != sizeof(TempLog)");
+            exception(-2, "get_Average_Temperature_from_Log", "In Average, <Read data size> != sizeof(TempLog)");
             continue;
         }
 
@@ -343,7 +391,7 @@ int get_Average_Temperature_from_Log(float* avg_temp_buf, int inputInterval, int
     return 0;
 }
 
-void get_Before_day(DateInfo* buf, const DateInfo* pointDate){ // Get before day.
+void get_Before_day(DateInfo* buf, const DateInfo* pointDate) { // Get before day.
     // buf: Pointer that store the date, pointDate: Baseline date, Nullable.
     // If pointDate is null, Calculate with base of today.
     int daysInMonth[] = { 31, (dateBuf.year % 4 == 0 && dateBuf.year % 100 != 0) || dateBuf.year % 400 == 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
